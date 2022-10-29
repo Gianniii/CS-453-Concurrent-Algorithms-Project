@@ -1,7 +1,5 @@
 #include "batcher.h"
-#include "tm.h"
 
-// Batcher_functions-----------------------------------------------------------------------------
 bool init_batcher(batcher_t *batcher) {
   batcher->cur_epoch = 0;
   batcher->no_rw_tx = true;
@@ -40,12 +38,7 @@ void enter(batcher_t *batcher) {
   return;
 }
 
-/** Leave critical section, and if you are the last thread wake up waiting
- *threads.
- * @param batcher Batcher instance
- * @param region Region instance
- * @param tx Current transaction leaving the batcher
- **/
+// Leave and wake up other threads if are last
 void leave(batcher_t *batcher, region_t *region, tx_t tx) {
   lock_acquire(&batcher->lock);
 
@@ -76,9 +69,6 @@ void leave(batcher_t *batcher, region_t *region, tx_t tx) {
   return;
 }
 
-/** Clean up batcher instance.
- * @param batcher Batcher instance to be cleaned up
- **/
 void destroy_batcher(batcher_t *batcher) {
   lock_cleanup(&(batcher->lock));
   pthread_cond_destroy(&(batcher->cond_var));

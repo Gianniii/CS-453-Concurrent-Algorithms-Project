@@ -1,11 +1,13 @@
+#pragma once
+
 #include "lock.h"
 #include "macros.h"
+#include "tm.h"
 #include <limits.h>
 #include <malloc.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tm.h>
 
 // Segment constants
 #define SEGMENT_SHIFT 24
@@ -16,15 +18,17 @@
 #define INVALID_TX UINT_MAX
 
 /** segment structure (multiple per shared memory).
- * @param created_by_tx If -1 segment is shared, else it's temporary and must be
- *deleted if tx abort
- * @param to_delete If set to some tx, the segment has to be deleted when the
- *last transaction exit the batcher, rollback set to 0 if the tx rollback
- * @param has_been_modified Flag to track if segment has been modified in epoch
+ * @param created_by_tx If -1 segment is shared, else it's temporary and
+ *must be deleted if tx abort
+ * @param to_delete If set to some tx, the segment has to be deleted when
+ *the last transaction exit the batcher, rollback set to 0 if the tx
+ *rollback
+ * @param has_been_modified Flag to track if segment has been modified in
+ *epoch
  * @param index_modified_words Array to store sequential indexes of accessed
  *words in segment
- * @param cnt_index_modified_words Atomic counter incremented every time there
- *is an operation on word
+ * @param cnt_index_modified_words Atomic counter incremented every time
+ *there is an operation on word
  **/
 typedef struct segment_s {
   size_t num_words;    // num words in segment

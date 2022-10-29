@@ -1,25 +1,10 @@
-#include <stdlib.h>
+#pragma once
 
 #include "lock.h"
 #include "segment.h"
-#include <tm.h>
+#include "tm.h"
+#include <stdlib.h>
 
-/** shared memory region structure (1 per shared memory).
- * @param batcher Batcher instance for the shared memory
- * @param start Start of the shared memory region
- * @param segment Array of segments in the memory region
- * @param num_alloc_segments Number of allocated segments (used to keep track
- *for realloc)
- * @param first_seg_size Size of the shared memory region (in bytes)
- * @param align Claimed alignment of the shared memory region (in bytes)
- * @param align_alloc Actual alignment of the memory allocations (in bytes)
- * @param current_segment_index Max index of the current segment (incremented if
- *no freed indexes available)
- * @param freed_segment_index Array of indexes freed and that can be used again
- * @param segment_lock Lock for reallocation of array of segments and array of
- *freed indexes
- * @param curren_transaction_id Max value of transaction id assigned to some tx
- **/
 typedef struct batcher_s {
   int cur_epoch;           // keep track of the current epoch through a counter
   int remaining;           // remaining threads in counter
@@ -31,12 +16,23 @@ typedef struct batcher_s {
   bool *is_ro;   // Array to keep track which transacations are read-only
 } batcher_t;
 
+/* @param first_seg_size Size of the shared memory region (in bytes)
+ * @param align Claimed alignment of the shared memory region (in bytes)
+ * @param align_alloc Actual alignment of the memory allocations (in bytes)
+ * @param current_segment_index Max index of the current segment (incremented if
+ *no freed indexes available)
+ * @param freed_segment_index Array of indexes freed and that can be used again
+ * @param segment_lock Lock for reallocation of array of segments and array of
+ *freed indexes
+ * @param curren_transaction_id Max value of transaction id assigned to some tx
+ **/
 typedef struct region_s {
   batcher_t batcher;
-  void *start;
-  // struct link allocs;
-  segment_t *segment;
-  int num_alloc_segments;
+  void *start;            // start of shared memory region
+  segment_t *segment;     // Array for its segments
+  int num_alloc_segments; // TODO changethis num_alloc_segments Number of
+                          // allocated segments (used to keep track
+  //*for realloc)
   size_t first_seg_size;
   size_t align;
   size_t align_alloc;
@@ -51,3 +47,6 @@ int get_epoch(batcher_t *);
 void enter(batcher_t *);
 void leave(batcher_t *, region_t *, tx_t tx);
 void destroy_batcher(batcher_t *);
+
+void abort_tx(region_t *, tx_t);
+void commit_tx(region_t *, tx_t);
