@@ -29,8 +29,11 @@
 #include <stdlib.h>
 #include <string.h>
 /** Internal headers **/
+#include "batcher.h"
+#include "lock.h"
 #include "macros.h"
-#include <tm.h>
+//#include "segment.h"
+
 /** Global constants **/
 #define SEGMENT_SHIFT 24
 #define INIT_FREED_SEG_SIZE                                                    \
@@ -38,207 +41,15 @@
 #define INIT_SEG_SIZE                                                          \
   10 // 1 if you want reallocation of segments (not statically init)
 #define INVALID_TX UINT_MAX
-// HEADER----------------------------------------------------------------------------
-
-/** Locks
- * @param mutex mutex
- **/
-typedef struct lock_s {
-  pthread_mutex_t mutex;
-} lock_t;
 
 /** Transaction characteristics.*/
 
-typedef struct batcher_s {
-  int cur_epoch;           // keep track of the current epoch through a counter
-  int remaining;           // remaining threads in counter
-  int blocked_count;       // number of blocked transacation threads
-  lock_t lock;             // lock for batcher functions
-  pthread_cond_t cond_var; // conditional variable for waking waiting threads
-  int num_running_tx;      // current number of transacations running in batcher
-  bool no_rw_tx; // ture if no rw ops in current epoch(for commit optimization)
-  bool *is_ro;   // Array to keep track which transacations are read-only
-} batcher_t;
-
-/** segment structure (multiple per shared memory).
- * @param created_by_tx If -1 segment is shared, else it's temporary and must be
- *deleted if tx abort
- * @param to_delete If set to some tx, the segment has to be deleted when the
- *last transaction exit the batcher, rollback set to 0 if the tx rollback
- * @param has_been_modified Flag to track if segment has been modified in epoch
- * @param index_modified_words Array to store sequential indexes of accessed
- *words in segment
- * @param cnt_index_modified_words Atomic counter incremented every time there
- *is an operation on word
- **/
-typedef struct segment_s {
-  size_t num_words;    // num words in segment
-  void *copy_0;        // Copy 0 of segments words (accessed shifting a pointer)
-  void *copy_1;        // Copy 1 of segments words (accessed shifting a pointer)
-  int *read_only_copy; // Array of flags for read-only copy
-  tx_t *access_set; // Array of read-write tx which have accessed the word (the
-                    // first to access the word(read or write) will own it for
-                    // the epoch)
-  bool *is_written_in_epoch; // Array of boolean to flag if the word has been
-                             // written
-  lock_t *word_locks;
-  int align;               // size of a word
-  tx_t created_by_tx;      // in tm_alloc
-  _Atomic(tx_t) to_delete; // in tm_free
-  bool has_been_modified;
-  int *index_modified_words;
-  _Atomic(int) cnt_index_modified_words;
-} segment_t;
-
-/** shared memory region structure (1 per shared memory).
- * @param batcher Batcher instance for the shared memory
- * @param start Start of the shared memory region
- * @param segment Array of segments in the memory region
- * @param num_alloc_segments Number of allocated segments (used to keep track
- *for realloc)
- * @param first_seg_size Size of the shared memory region (in bytes)
- * @param align Claimed alignment of the shared memory region (in bytes)
- * @param align_alloc Actual alignment of the memory allocations (in bytes)
- * @param current_segment_index Max index of the current segment (incremented if
- *no freed indexes available)
- * @param freed_segment_index Array of indexes freed and that can be used again
- * @param segment_lock Lock for reallocation of array of segments and array of
- *freed indexes
- * @param curren_transaction_id Max value of transaction id assigned to some tx
- **/
-typedef struct region_s {
-  batcher_t batcher;
-  void *start;
-  // struct link allocs;
-  segment_t *segment;
-  int num_alloc_segments;
-  size_t first_seg_size;
-  size_t align;
-  size_t align_alloc;
-  int current_segment_index; // start from 1
-  int *freed_segment_index;
-  lock_t segment_lock;
-  _Atomic(tx_t) current_transaction_id; // start from 1
-} region_t;
-
 /** Functions headers **/
-
-// additional functions
-static bool lock_init(lock_t *);
-static void lock_cleanup(lock_t *);
-static bool lock_acquire(lock_t *);
-static void lock_release(lock_t *);
-
 void abort_tx(region_t *, tx_t);
 void commit_tx(region_t *, tx_t);
 
-bool init_batcher(batcher_t *);
-int get_epoch(batcher_t *);
-void enter(batcher_t *);
-void leave(batcher_t *, region_t *, tx_t tx);
-void destroy_batcher(batcher_t *);
-
-bool segment_init(segment_t *, tx_t, size_t, size_t);
-bool soft_segment_init(segment_t *, tx_t, size_t, size_t);
-void *encode_segment_address(int);
-void decode_segment_address(void const *, int *, int *);
-
 alloc_t read_word(int, void *, segment_t *, bool, tx_t);
 alloc_t write_word(int, const void *, segment_t *, tx_t);
-// END-HEADER-----------------------------------------------------------------------------------
-/** Lock **/
-static bool lock_init(lock_t *lock) {
-  return pthread_mutex_init(&(lock->mutex), NULL) == 0;
-}
-static void lock_cleanup(lock_t *lock) {
-  pthread_mutex_destroy(&(lock->mutex));
-}
-static bool lock_acquire(lock_t *lock) {
-  return pthread_mutex_lock(&(lock->mutex)) == 0;
-}
-static void lock_release(lock_t *lock) { pthread_mutex_unlock(&(lock->mutex)); }
-// Batcher_functions-----------------------------------------------------------------------------
-bool init_batcher(batcher_t *batcher) {
-  batcher->cur_epoch = 0;
-  batcher->no_rw_tx = true;
-  batcher->is_ro = NULL;
-  batcher->remaining = 0;
-  batcher->num_running_tx = 0;
-  batcher->blocked_count = 0;
-  if (!lock_init(&(batcher->lock))) {
-    return false;
-  }
-  if (pthread_cond_init(&(batcher->cond_var), NULL) != 0) {
-    lock_cleanup(&(batcher->lock));
-    return false;
-  }
-  return true;
-}
-
-int get_epoch(batcher_t *batcher) { return batcher->cur_epoch; }
-
-// Enters in the critical section, or waits until woken up.
-void enter(batcher_t *batcher) {
-  lock_acquire(&batcher->lock);
-  if (batcher->remaining == 0) {
-    // here only the first transaction of the STM enters
-    batcher->remaining = 1;
-    batcher->num_running_tx = batcher->remaining;
-
-    // as it's the first, we need to allocate the array of running_tx in batcher
-    batcher->is_ro = (bool *)malloc(sizeof(bool));
-  } else {
-    // If batcher has remaining, add to num_blocked_threads and wait
-    batcher->blocked_count++;
-    pthread_cond_wait(&batcher->cond_var, &batcher->lock.mutex);
-  }
-  lock_release(&batcher->lock);
-  return;
-}
-
-/** Leave critical section, and if you are the last thread wake up waiting
- *threads.
- * @param batcher Batcher instance
- * @param region Region instance
- * @param tx Current transaction leaving the batcher
- **/
-void leave(batcher_t *batcher, region_t *region, tx_t tx) {
-  lock_acquire(&batcher->lock);
-
-  // update number remaining transactions
-  batcher->remaining--;
-
-  // only the last tx leaving the batcher performs operations
-  if (batcher->remaining == 0) {
-    batcher->cur_epoch++;
-    batcher->remaining = batcher->blocked_count;
-
-    // realloc transactions array with new number of transactions
-    if (batcher->remaining == 0) {
-      free(batcher->is_ro);
-    } else {
-      batcher->is_ro =
-          (bool *)realloc(batcher->is_ro, batcher->remaining * sizeof(bool));
-    }
-    batcher->num_running_tx = batcher->remaining;
-    commit_tx(region, tx); // commit all transacations
-
-    batcher->blocked_count = 0;
-    batcher->no_rw_tx = true;
-
-    pthread_cond_broadcast(&batcher->cond_var);
-  }
-  lock_release(&batcher->lock);
-  return;
-}
-
-/** Clean up batcher instance.
- * @param batcher Batcher instance to be cleaned up
- **/
-void destroy_batcher(batcher_t *batcher) {
-  lock_cleanup(&(batcher->lock));
-  pthread_cond_destroy(&(batcher->cond_var));
-}
 
 // -------------------------------------------------------------------------- //
 /** Util functions for manipulating segments **/
