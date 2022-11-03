@@ -46,7 +46,7 @@ typedef struct segment_s {
   _Atomic(tx_t) to_delete; // in tm_free
   bool has_been_modified;
   int *index_modified_words;
-  _Atomic(int) cnt_index_modified_words;
+  _Atomic(int) num_writen_words;
 } segment_t;
 
 bool segment_init(segment_t *, tx_t, size_t, size_t);

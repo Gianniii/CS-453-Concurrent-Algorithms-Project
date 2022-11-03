@@ -314,8 +314,7 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
       // - read-write tx
       // - not added before
       if (segment->access_set[word_index] == INVALID_TX) {
-        modified_index =
-            atomic_fetch_add(&segment->cnt_index_modified_words, 1);
+        modified_index = atomic_fetch_add(&segment->num_writen_words, 1);
         segment->index_modified_words[modified_index] = word_index;
 
         // add tx into access set (only the first tx)
@@ -461,8 +460,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
       // mark that word has been written, after fetch&inc index, if:
       // - not added before
       if (segment->access_set[word_index] == INVALID_TX) {
-        modified_index =
-            atomic_fetch_add(&segment->cnt_index_modified_words, 1);
+        modified_index = atomic_fetch_add(&segment->num_writen_words, 1);
         segment->index_modified_words[modified_index] = word_index;
 
         // add tx into access set (only the first tx)
@@ -640,7 +638,7 @@ void abort_tx(region_t *region, tx_t tx) {
       continue;
     }
 
-    max_word_index = atomic_load(&segment->cnt_index_modified_words);
+    max_word_index = atomic_load(&segment->num_writen_words);
 
     // roolback write operations on each word performed by tx
     for (int i = 0; i < max_word_index; i++) {
@@ -683,7 +681,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
       segment->created_by_tx = INVALID_TX;
     }
     // commit algorithm for words (copy written word copy into read-only copy)
-    for (int i = 0; i < (int)segment->cnt_index_modified_words; i++) {
+    for (int i = 0; i < (int)segment->num_writen_words; i++) {
       word_index = segment->index_modified_words[i];
       if (segment->is_written_in_epoch[word_index] == true) {
         // swap valid copy (in case it has been written)
@@ -702,7 +700,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
     // reset flags
     segment->has_been_modified = false;
     memset(segment->index_modified_words, -1,
-           segment->cnt_index_modified_words * sizeof(int));
-    segment->cnt_index_modified_words = 0;
+           segment->num_writen_words * sizeof(int));
+    segment->num_writen_words = 0;
   }
 }

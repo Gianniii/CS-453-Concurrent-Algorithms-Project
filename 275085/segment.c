@@ -7,7 +7,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   segment->created_by_tx = tx;
   segment->has_been_modified = false;
   atomic_store(&segment->to_delete, INVALID_TX);
-  atomic_store(&segment->cnt_index_modified_words, 0);
+  atomic_store(&segment->num_writen_words, 0);
 
   // alloc words in segment
   segment->copy_0 = (void *)calloc(segment->num_words, alignment);
@@ -110,7 +110,7 @@ bool soft_segment_init(segment_t *segment, tx_t tx, size_t size,
   segment->created_by_tx = tx;
   segment->has_been_modified = false;
   atomic_store(&segment->to_delete, INVALID_TX);
-  atomic_store(&segment->cnt_index_modified_words, 0);
+  atomic_store(&segment->num_writen_words, 0);
 
   // initialize words in segment with all zeros
   memset(segment->copy_0, 0, size);
