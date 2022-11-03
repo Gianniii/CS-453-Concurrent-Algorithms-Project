@@ -1,11 +1,11 @@
 #include "batcher.h"
 
 bool init_batcher(batcher_t *batcher) {
-  batcher->cur_epoch = 0;
-  batcher->is_ro = NULL;
-  batcher->remaining = 0;
-  batcher->num_running_tx = 0;
   batcher->blocked_count = 0;
+  batcher->cur_epoch = 0;
+  batcher->num_running_tx = 0;
+  batcher->remaining = 0;
+  batcher->is_ro = NULL;
   if (!lock_init(&(batcher->lock))) {
     return false;
   }
@@ -17,7 +17,7 @@ bool init_batcher(batcher_t *batcher) {
 }
 
 // Enters in the critical section, or waits until woken up.
-bool enter(batcher_t *batcher) {
+bool enter_batcher(batcher_t *batcher) {
   lock_acquire(&batcher->lock);
   if (batcher->remaining == 0) {
     // here only the first transaction of the STM enters
@@ -39,7 +39,8 @@ bool enter(batcher_t *batcher) {
 }
 
 // Leave and wake up other threads if are last
-void leave(batcher_t *batcher, region_t *region, tx_t tx) {
+bool leave_batcher(region_t *region, tx_t tx) {
+  batcher_t *batcher = &(region->batcher);
   lock_acquire(&batcher->lock);
   // Subtract transaction
   batcher->remaining--;
@@ -66,7 +67,7 @@ void leave(batcher_t *batcher, region_t *region, tx_t tx) {
     pthread_cond_broadcast(&batcher->cond_var);
   }
   lock_release(&batcher->lock);
-  return;
+  return true;
 }
 
 void destroy_batcher(batcher_t *batcher) {

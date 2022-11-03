@@ -151,7 +151,7 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
   tx_t tx_index;
 
   // enter batcher
-  if (!enter(&(region->batcher))) {
+  if (!enter_batcher(&(region->batcher))) {
     return invalid_tx;
   }
 
@@ -171,9 +171,7 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
  * @return Whether the whole transaction committed
  **/
 bool tm_end(shared_t shared, tx_t tx) {
-  region_t *region = (region_t *)shared;
-  leave(&(region->batcher), region, tx);
-  return true;
+  return leave_batcher((region_t *)shared, tx);
 }
 
 /** [thread-safe] Read operation in the given transaction, source in the shared
@@ -669,7 +667,7 @@ void abort_tx(region_t *region, tx_t tx) {
     }
   }
   // also aborting tx should leave the batcher
-  leave(&(region->batcher), region, tx);
+  leave_batcher(region, tx);
 }
 
 /** [thread-safe] commit operations for a given transaction

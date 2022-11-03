@@ -26,24 +26,24 @@ typedef struct batcher_s {
  * @param curren_transaction_id Max value of transaction id assigned to some tx
  **/
 typedef struct region_s {
-  batcher_t batcher;
-  void *start;            // start of shared memory region
-  segment_t *segment;     // Array for its segments
+  _Atomic(tx_t) current_transaction_id; // start from 1
+  void *start;                          // start of shared memory region
+  segment_t *segment;                   // Array for its segments
   int num_alloc_segments; // TODO changethis num_alloc_segments Number of
                           // allocated segments (used to keep track
   //*for realloc)
-  size_t first_seg_size;
   size_t align;
   size_t align_alloc;
-  int current_segment_index; // start from 1
   int *freed_segment_index;
+  int current_segment_index; // start from 1
   lock_t segment_lock;
-  _Atomic(tx_t) current_transaction_id; // start from 1
+  batcher_t batcher;
+  size_t first_seg_size;
 } region_t;
 
 bool init_batcher(batcher_t *);
-bool enter(batcher_t *);
-void leave(batcher_t *, region_t *, tx_t tx);
+bool enter_batcher(batcher_t *);
+bool leave_batcher(region_t *, tx_t tx);
 void destroy_batcher(batcher_t *);
 
 void abort_tx(region_t *, tx_t);
