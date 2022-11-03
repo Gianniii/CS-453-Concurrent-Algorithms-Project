@@ -148,21 +148,16 @@ size_t tm_align(shared_t shared) { return ((region_t *)shared)->align_alloc; }
 tx_t tm_begin(shared_t shared, bool is_ro) {
   // TODO LOCK with a tm_begin_lock or something
   region_t *region = (region_t *)shared;
-  tx_t tx_index;
-
   // enter batcher
   if (!enter_batcher(&(region->batcher))) {
     return invalid_tx;
   }
+  // get index for transacation
+  tx_t id = atomic_fetch_add(&region->current_transaction_id, 1) %
+            region->batcher.num_running_tx;
+  region->batcher.is_ro[id] = is_ro; // this should be atomic or should use lock
 
-  // create new tx element (get and add 1)
-  // need to mod the index as it's always increasing
-  tx_index = atomic_fetch_add(&region->current_transaction_id, 1) %
-             region->batcher.num_running_tx;
-
-  // save the kind of tx
-  region->batcher.is_ro[tx_index] = is_ro;
-  return tx_index;
+  return id;
 }
 
 /** [thread-safe] End the given transaction.
@@ -259,6 +254,18 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   return true;
 }
 
+// UTILS
+void read_correct_copy(int word_index, void *target, segment_t *segment,
+                       int copy) {
+  if (copy == 0) {
+    memcpy(target, segment->copy_0 + (word_index * segment->align),
+           segment->align);
+  } else {
+    memcpy(target, segment->copy_1 + (word_index * segment->align),
+           segment->align);
+  }
+}
+
 /** [thread-safe] Read word operation.
  * @param word_index Index of word into consideration
  * @param target Target start address (in a private region)
@@ -270,21 +277,15 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
  **/
 alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
                   tx_t tx) {
-  int readable_copy;
+  int copy;
   int modified_index;
   // find readable copy
-  readable_copy = segment->read_only_copy[word_index];
+  copy = segment->read_only_copy[word_index];
 
   // if read-only
   if (is_ro == true) {
     // perform read operation into target
-    if (readable_copy == 0) {
-      memcpy(target, segment->copy_0 + (word_index * segment->align),
-             segment->align);
-    } else {
-      memcpy(target, segment->copy_1 + (word_index * segment->align),
-             segment->align);
-    }
+    read_correct_copy(word_index, target, segment, copy);
 
     return success_alloc;
   } else {
@@ -295,32 +296,19 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
 
     // if word written in current epoch
     if (segment->is_written_in_epoch[word_index] == true) {
-
-      // release word lock
       lock_release(&segment->word_locks[word_index]);
 
       // if transaction in access set
       if (segment->access_set[word_index] == tx) {
         // read write copy into target
-        if (readable_copy == 0) {
-          memcpy(target, segment->copy_1 + (word_index * segment->align),
-                 segment->align);
-        } else {
-          memcpy(target, segment->copy_0 + (word_index * segment->align),
-                 segment->align);
-        }
+        copy = (copy == 0) ? 1 : 0;
+        read_correct_copy(word_index, target, segment, copy);
         return success_alloc;
       } else {
         return abort_alloc;
       }
     } else {
-      if (readable_copy == 0) {
-        memcpy(target, segment->copy_0 + (word_index * segment->align),
-               segment->align);
-      } else {
-        memcpy(target, segment->copy_1 + (word_index * segment->align),
-               segment->align);
-      }
+      read_correct_copy(word_index, target, segment, copy);
 
       // mark that word has been read, after fetch&inc index, if:
       // - read-write tx
@@ -342,8 +330,8 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
   }
 }
 
-/** [thread-safe] Write operation in the given transaction, source in a private
- *region and target in the shared region.
+/** [thread-safe] Write operation in the given transaction, source in a
+ *private region and target in the shared region.
  * @param shared Shared memory region associated with the transaction
  * @param tx     Transaction to use
  * @param source Source start address (in a private region)
@@ -491,8 +479,8 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
   }
 }
 
-/** [thread-safe] Memory allocation in the given transaction. (should be called
- *a lot)
+/** [thread-safe] Memory allocation in the given transaction. (should be
+ *called a lot)
  * @param shared Shared memory region associated with the transaction
  * @param tx     Transaction to use
  * @param size   Allocation requested size (in bytes), must be a positive
@@ -636,8 +624,8 @@ void abort_tx(region_t *region, tx_t tx) {
     segment = &region->segment[segment_index];
 
     // unset segments on which tx has called tm_free previously (tx_tmp is
-    // needed because of the atomic_compare_exchange, which perform if then else
-    // (check code at the bottom))
+    // needed because of the atomic_compare_exchange, which perform if then
+    // else (check code at the bottom))
     tx_tmp = tx;
     atomic_compare_exchange_strong(
         &segment->to_delete, &tx,

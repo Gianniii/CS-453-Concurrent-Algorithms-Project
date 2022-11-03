@@ -1,5 +1,5 @@
 #include "lock.h"
-/** Lock **/
+
 bool lock_init(lock_t *lock) {
   return pthread_mutex_init(&(lock->mutex), NULL) == 0;
 }
