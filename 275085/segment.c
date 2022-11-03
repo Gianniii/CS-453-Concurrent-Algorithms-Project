@@ -94,40 +94,6 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   return true;
 }
 
-/** Reset an already init segment for a region.
- * @param segment Segment of shared memory region
- * @param tx Current transaction initializing the segment
- * @param size Size of segment
- * @param align_alloc Alignment of words in segment
- * @return Boolean for success or failure
- **/
-bool soft_segment_init(segment_t *segment, tx_t tx, size_t size,
-                       size_t align_alloc) {
-  segment->num_words =
-      size /
-      (align_alloc); // NOT /2 because we still want the correct total size
-  segment->align = align_alloc;
-  segment->created_by_tx = tx;
-  segment->has_been_modified = false;
-  atomic_store(&segment->to_delete, INVALID_TX);
-  atomic_store(&segment->num_writen_words, 0);
-
-  // initialize words in segment with all zeros
-  memset(segment->copy_0, 0, size);
-  memset(segment->copy_1, 0, size);
-  // init supporting data structure for words (to 0)
-  memset(segment->read_only_copy, 0, segment->num_words * sizeof(int));
-  // init access set to -1
-  for (int i = 0; i < (int)segment->num_words; i++) {
-    segment->access_set[i] = INVALID_TX;
-  }
-  memset(segment->is_written_in_epoch, 0, segment->num_words * sizeof(bool));
-
-  memset(segment->index_modified_words, -1, segment->num_words * sizeof(int));
-
-  return true;
-}
-
 /** Encode segment number into an opaque pointer address.
  * @param segment_num Number of segment
  * @return Encoded address

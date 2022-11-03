@@ -108,8 +108,6 @@ shared_t tm_create(size_t size, size_t align) {
  **/
 void tm_destroy(shared_t shared) {
   region_t *region = (region_t *)shared;
-  // cleanup and free batcher
-  destroy_batcher(&(region->batcher));
 
   // free segment and related
   for (int i = 0; i < region->current_segment_index; i++) {
@@ -120,11 +118,13 @@ void tm_destroy(shared_t shared) {
     free(seg.access_set);
     free(seg.is_written_in_epoch);
     free(seg.index_modified_words);
-    for (int j = 0; j < (int)seg.num_words; j++) {
-      lock_cleanup(&(seg.word_locks[j]));
+    for (size_t i = 0; i < seg.num_words; i++) {
+      lock_cleanup(&(seg.word_locks[i]));
     }
     free(seg.word_locks);
   }
+
+  destroy_batcher(&(region->batcher));
   free(region->segment);
   free(region->freed_segment_index);
 
