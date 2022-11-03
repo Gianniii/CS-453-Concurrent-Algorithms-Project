@@ -9,7 +9,7 @@ typedef struct batcher_s {
   int cur_epoch;           // keep track of the current epoch through a counter
   int remaining;           // remaining threads in counter
   int blocked_count;       // number of blocked transacation threads
-  lock_t lock;             // lock for batcher functions
+  struct lock_t lock;      // lock for batcher functions
   pthread_cond_t cond_var; // conditional variable for waking waiting threads
   int num_running_tx;      // current number of transacations running in batcher
   bool *is_ro; // Array to keep track which transacations are read-only
@@ -36,7 +36,7 @@ typedef struct region_s {
   size_t align_alloc;
   int *freed_segment_index;
   int current_segment_index; // start from 1
-  lock_t segment_lock;
+  struct lock_t segment_lock;
   batcher_t batcher;
   size_t first_seg_size;
 } region_t;

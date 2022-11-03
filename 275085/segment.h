@@ -40,7 +40,7 @@ typedef struct segment_s {
                     // the epoch)
   bool *is_written_in_epoch; // Array of boolean to flag if the word has been
                              // written
-  lock_t *word_locks;
+  struct lock_t *word_locks;
   int align;               // size of a word
   tx_t created_by_tx;      // in tm_alloc
   _Atomic(tx_t) to_delete; // in tm_free

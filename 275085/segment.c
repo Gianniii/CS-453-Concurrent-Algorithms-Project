@@ -64,7 +64,8 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   }
 
   // allocate and init array of locks for words
-  segment->word_locks = (lock_t *)malloc(segment->num_words * sizeof(lock_t));
+  segment->word_locks =
+      (struct lock_t *)malloc(segment->num_words * sizeof(struct lock_t));
   if (!segment->is_written_in_epoch) {
     free(segment->index_modified_words);
     free(segment->is_written_in_epoch);
