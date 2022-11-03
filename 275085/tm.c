@@ -146,19 +146,18 @@ size_t tm_align(shared_t shared) { return ((region_t *)shared)->align_alloc; }
  * @return Opaque transaction ID, 'invalid_tx' on failure
  **/
 tx_t tm_begin(shared_t shared, bool is_ro) {
+  // TODO LOCK with a tm_begin_lock or something
   region_t *region = (region_t *)shared;
   tx_t tx_index;
 
   // enter batcher
-  enter(&(region->batcher));
-
-  if (!is_ro) {
-    region->batcher.no_rw_tx = false;
+  if (!enter(&(region->batcher))) {
+    return invalid_tx;
   }
 
-  // check failure in transactions realloc
-  if (region->batcher.is_ro == NULL) {
-    return invalid_tx;
+  // if not read only transacation, indicate to the batcher
+  if (!is_ro) {
+    region->batcher.no_rw_tx = false;
   }
 
   // create new tx element (get and add 1)
@@ -685,9 +684,6 @@ void abort_tx(region_t *region, tx_t tx) {
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   int word_index;
-  if (region->batcher.no_rw_tx) {
-    return;
-  }
 
   for (int segment_index = 0;
        segment_index < region->current_segment_index &&

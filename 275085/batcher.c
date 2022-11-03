@@ -18,7 +18,7 @@ bool init_batcher(batcher_t *batcher) {
 }
 
 // Enters in the critical section, or waits until woken up.
-void enter(batcher_t *batcher) {
+bool enter(batcher_t *batcher) {
   lock_acquire(&batcher->lock);
   if (batcher->remaining == 0) {
     // here only the first transaction of the STM enters
@@ -27,13 +27,16 @@ void enter(batcher_t *batcher) {
 
     // as it's the first, we need to allocate the array of running_tx in batcher
     batcher->is_ro = (bool *)malloc(sizeof(bool));
+    if (batcher->is_ro == NULL) {
+      return false;
+    }
   } else {
     // thread is added to list of blocked threads waiting for next epoch.
     batcher->blocked_count++;
     pthread_cond_wait(&batcher->cond_var, &batcher->lock.mutex);
   }
   lock_release(&batcher->lock);
-  return;
+  return true;
 }
 
 // Leave and wake up other threads if are last

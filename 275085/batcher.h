@@ -43,7 +43,7 @@ typedef struct region_s {
 } region_t;
 
 bool init_batcher(batcher_t *);
-void enter(batcher_t *);
+bool enter(batcher_t *);
 void leave(batcher_t *, region_t *, tx_t tx);
 void destroy_batcher(batcher_t *);
 
