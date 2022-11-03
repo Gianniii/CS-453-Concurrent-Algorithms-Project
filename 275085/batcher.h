@@ -33,7 +33,6 @@ typedef struct region_s {
                           // allocated segments (used to keep track
   //*for realloc)
   size_t align;
-  size_t align_alloc;
   int *freed_segment_index;
   int current_segment_index; // start from 1
   struct lock_t segment_lock;

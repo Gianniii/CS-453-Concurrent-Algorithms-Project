@@ -41,10 +41,6 @@ shared_t tm_create(size_t size, size_t align) {
   if (!region) {
     return invalid_shared;
   }
-
-  // calculate alignment for the shared memory region
-  size_t align_alloc = align < sizeof(void *) ? sizeof(void *) : align;
-
   // initialize batcher for shared memory region
   if (!init_batcher(&region->batcher)) {
     free(region);
@@ -80,8 +76,10 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
+  // calculate alignment for the shared memory region
+  align = align < sizeof(void *) ? sizeof(void *) : align;
   // initialize first segment
-  if (!segment_init(&region->segment[0], -1, size, align_alloc)) {
+  if (!segment_init(&region->segment[0], -1, size, align)) {
     destroy_batcher(&(region->batcher));
     lock_cleanup(&(region->segment_lock));
     free(region->freed_segment_index);
@@ -94,7 +92,6 @@ shared_t tm_create(size_t size, size_t align) {
 
   region->first_seg_size = size;
   region->align = align;
-  region->align_alloc = align_alloc;
   region->num_alloc_segments = INIT_SEG_SIZE;
 
   region->current_segment_index = 1;
@@ -138,7 +135,7 @@ void *tm_start(shared_t shared) { return ((region_t *)shared)->start; }
 
 size_t tm_size(shared_t shared) { return ((region_t *)shared)->first_seg_size; }
 
-size_t tm_align(shared_t shared) { return ((region_t *)shared)->align_alloc; }
+size_t tm_align(shared_t shared) { return ((region_t *)shared)->align; }
 
 /** [thread-safe] Begin a new transaction on the given shared memory region.
  * @param shared Shared memory region to start a transaction on
@@ -152,11 +149,10 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
   if (!enter_batcher(&(region->batcher))) {
     return invalid_tx;
   }
-  // get index for transacation
+  // get index of transacation
   tx_t id = atomic_fetch_add(&region->current_transaction_id, 1) %
             region->batcher.n_in_epoch;
   region->batcher.is_ro[id] = is_ro; // this should be atomic or should use lock
-
   return id;
 }
 
@@ -197,11 +193,8 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // check size, must be multiple of the shared memory region’s alignment,
   // otherwise the behavior is undefined.
-  if (size <= 0 || size % region->align_alloc != 0) {
-    if (!is_ro) {
-      abort_tx(region, tx);
-    }
-    return false; // abort_tx
+  if (size <= 0 || size % region->align != 0) {
+    abort_tx(region, tx);
   }
 
   // retrieve segment and word number
@@ -209,13 +202,10 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // check that source and target addresses are a positive multiple of the
   // shared memory region’s alignment, otherwise the behavior is undefined.
-  if (word_index % region->align_alloc != 0 ||
-      (uintptr_t)source % region->align_alloc != 0 ||
+  if (word_index % region->align != 0 ||
+      (uintptr_t)source % region->align != 0 ||
       segment_index > region->current_segment_index) {
-    if (!is_ro) {
-      abort_tx(region, tx);
-    }
-    return false; // abort_tx
+    abort_tx(region, tx);
   }
 
   // find true index (divide by word size)
@@ -223,16 +213,13 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // check address correctness
   if (segment_index < 0 || word_index < 0) {
-    if (!is_ro) {
-      abort_tx(region, tx);
-    }
-    return false; // abort_tx
+    abort_tx(region, tx);
   }
 
   /**READ OPERATION**/
 
   // calculate number of words to be read in segment
-  num_words_to_read = size / region->align_alloc;
+  num_words_to_read = size / region->align;
   // get segment
   segment = &region->segment[segment_index];
 
@@ -352,7 +339,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   /**SANITY CHECKS**/
   // check size, must be multiple of the shared memory region’s alignment,
   // otherwise the behavior is undefined.
-  if (size <= 0 || size % region->align_alloc != 0) {
+  if (size <= 0 || size % region->align != 0) {
     abort_tx(region, tx);
     return false; // abort_tx
   }
@@ -362,8 +349,8 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // check that source and target addresses are a positive multiple of the
   // shared memory region’s alignment, otherwise the behavior is undefined.
-  if (word_index % region->align_alloc != 0 ||
-      (uintptr_t)target % region->align_alloc != 0) {
+  if (word_index % region->align != 0 ||
+      (uintptr_t)target % region->align != 0) {
     abort_tx(region, tx);
     return false; // abort_tx
   }
@@ -380,7 +367,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   /**WRITE OPERATION**/
 
   // calculate number of words to be read in segment
-  num_words_to_write = size / region->align_alloc;
+  num_words_to_write = size / region->align;
 
   // get segment
   segment = &region->segment[segment_index];
@@ -493,7 +480,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   segment_t segment;
   int index = -1;
   // check correct alignment of size
-  if (size <= 0 || size % region->align_alloc != 0) {
+  if (size <= 0 || size % region->align != 0) {
     abort_tx(region, tx);
     return abort_alloc; // abort_tx
   }
@@ -529,7 +516,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
     }
 
     // init segment
-    if (!segment_init(&segment, tx, size, region->align_alloc)) {
+    if (!segment_init(&segment, tx, size, region->align)) {
       return nomem_alloc;
     }
 
@@ -538,7 +525,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
 
   } else {
     // init segment
-    if (!segment_init(&region->segment[index], tx, size, region->align_alloc)) {
+    if (!segment_init(&region->segment[index], tx, size, region->align)) {
       return nomem_alloc;
     }
   }
