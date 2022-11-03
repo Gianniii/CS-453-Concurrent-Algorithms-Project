@@ -12,8 +12,7 @@ typedef struct batcher_s {
   lock_t lock;             // lock for batcher functions
   pthread_cond_t cond_var; // conditional variable for waking waiting threads
   int num_running_tx;      // current number of transacations running in batcher
-  bool no_rw_tx; // true if no rw ops in current epoch(for commit optimization)
-  bool *is_ro;   // Array to keep track which transacations are read-only
+  bool *is_ro; // Array to keep track which transacations are read-only
 } batcher_t;
 
 /* @param first_seg_size Size of the shared memory region (in bytes)

@@ -155,11 +155,6 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
     return invalid_tx;
   }
 
-  // if not read only transacation, indicate to the batcher
-  if (!is_ro) {
-    region->batcher.no_rw_tx = false;
-  }
-
   // create new tx element (get and add 1)
   // need to mod the index as it's always increasing
   tx_index = atomic_fetch_add(&region->current_transaction_id, 1) %

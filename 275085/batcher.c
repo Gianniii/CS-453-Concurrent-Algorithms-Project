@@ -2,7 +2,6 @@
 
 bool init_batcher(batcher_t *batcher) {
   batcher->cur_epoch = 0;
-  batcher->no_rw_tx = true;
   batcher->is_ro = NULL;
   batcher->remaining = 0;
   batcher->num_running_tx = 0;
@@ -42,17 +41,14 @@ bool enter(batcher_t *batcher) {
 // Leave and wake up other threads if are last
 void leave(batcher_t *batcher, region_t *region, tx_t tx) {
   lock_acquire(&batcher->lock);
-
-  // Subtract transacation
+  // Subtract transaction
   batcher->remaining--;
 
   // Last transaction is leaving
   if (batcher->remaining == 0) {
     batcher->cur_epoch++;
-
     // prepare batcher to unblock waiting transacations -------
     batcher->remaining = batcher->blocked_count;
-
     // realloc transactions array with new number of transactions
     if (batcher->remaining == 0) {
       free(batcher->is_ro); // free because will allocating again once another
@@ -66,7 +62,6 @@ void leave(batcher_t *batcher, region_t *region, tx_t tx) {
     commit_tx(region, tx); // commit all transacations
 
     batcher->blocked_count = 0;
-    batcher->no_rw_tx = true;
     // Unblock waiting transactions
     pthread_cond_broadcast(&batcher->cond_var);
   }
