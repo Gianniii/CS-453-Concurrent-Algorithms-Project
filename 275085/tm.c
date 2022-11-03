@@ -283,15 +283,16 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
 
     // if word written in current epoch
     if (segment->is_written_in_epoch[word_index] == true) {
-      lock_release(&segment->word_locks[word_index]);
 
       // if transaction in access set
       if (segment->access_set[word_index] == tx) {
         // read write copy into target
         copy = (copy == 0) ? 1 : 0;
         read_correct_copy(word_index, target, segment, copy);
+        lock_release(&segment->word_locks[word_index]);
         return success_alloc;
       } else {
+        lock_release(&segment->word_locks[word_index]);
         return abort_alloc;
       }
     } else {
