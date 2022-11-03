@@ -17,8 +17,6 @@ bool init_batcher(batcher_t *batcher) {
   return true;
 }
 
-int get_epoch(batcher_t *batcher) { return batcher->cur_epoch; }
-
 // Enters in the critical section, or waits until woken up.
 void enter(batcher_t *batcher) {
   lock_acquire(&batcher->lock);
@@ -30,7 +28,7 @@ void enter(batcher_t *batcher) {
     // as it's the first, we need to allocate the array of running_tx in batcher
     batcher->is_ro = (bool *)malloc(sizeof(bool));
   } else {
-    // If batcher has remaining, add to num_blocked_threads and wait
+    // thread is added to list of blocked threads waiting for next epoch.
     batcher->blocked_count++;
     pthread_cond_wait(&batcher->cond_var, &batcher->lock.mutex);
   }
@@ -42,17 +40,21 @@ void enter(batcher_t *batcher) {
 void leave(batcher_t *batcher, region_t *region, tx_t tx) {
   lock_acquire(&batcher->lock);
 
-  // update number remaining transactions
+  // Subtract transacation
   batcher->remaining--;
 
-  // only the last tx leaving the batcher performs operations
+  // Last transaction is leaving
   if (batcher->remaining == 0) {
     batcher->cur_epoch++;
+
+    // prepare batcher to unblock waiting transacations -------
     batcher->remaining = batcher->blocked_count;
 
     // realloc transactions array with new number of transactions
     if (batcher->remaining == 0) {
-      free(batcher->is_ro);
+      free(batcher->is_ro); // free because will allocating again once another
+                            // enters
+      batcher->is_ro = NULL;
     } else {
       batcher->is_ro =
           (bool *)realloc(batcher->is_ro, batcher->remaining * sizeof(bool));
@@ -62,7 +64,7 @@ void leave(batcher_t *batcher, region_t *region, tx_t tx) {
 
     batcher->blocked_count = 0;
     batcher->no_rw_tx = true;
-
+    // Unblock waiting transactions
     pthread_cond_broadcast(&batcher->cond_var);
   }
   lock_release(&batcher->lock);

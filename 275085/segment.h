@@ -50,7 +50,6 @@ typedef struct segment_s {
 } segment_t;
 
 bool segment_init(segment_t *, tx_t, size_t, size_t);
-bool soft_segment_init(segment_t *, tx_t, size_t, size_t);
 void *encode_segment_address(int);
 void decode_segment_address(void const *, int *, int *);
 

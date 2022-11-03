@@ -1,14 +1,6 @@
 /**
  * @file   tm.c
  * @author Gianni Lodetti
- *
- * @section LICENSE
- *
- * @section DESCRIPTION
- *
- * Implementation of my own transaction manager.
- * You can completely rewrite this file (and create more files) as you wish.
- * Only the interface (i.e. exported symbols and semantic) must be preserved.
  **/
 
 // Requested features
@@ -34,8 +26,6 @@
 #include "macros.h"
 #include "segment.h"
 #include "tm.h"
-
-// -------------------------------------------------------------------------- //
 
 /** Create (i.e. allocate + init) a new shared memory region, with one first
  *non-free-able allocated segment of the requested size and alignment.
@@ -570,8 +560,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
 
   } else {
     // init segment
-    if (!soft_segment_init(&region->segment[index], tx, size,
-                           region->align_alloc)) {
+    if (!segment_init(&region->segment[index], tx, size, region->align_alloc)) {
       return nomem_alloc;
     }
   }

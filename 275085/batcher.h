@@ -12,7 +12,7 @@ typedef struct batcher_s {
   lock_t lock;             // lock for batcher functions
   pthread_cond_t cond_var; // conditional variable for waking waiting threads
   int num_running_tx;      // current number of transacations running in batcher
-  bool no_rw_tx; // ture if no rw ops in current epoch(for commit optimization)
+  bool no_rw_tx; // true if no rw ops in current epoch(for commit optimization)
   bool *is_ro;   // Array to keep track which transacations are read-only
 } batcher_t;
 
@@ -43,7 +43,6 @@ typedef struct region_s {
 } region_t;
 
 bool init_batcher(batcher_t *);
-int get_epoch(batcher_t *);
 void enter(batcher_t *);
 void leave(batcher_t *, region_t *, tx_t tx);
 void destroy_batcher(batcher_t *);
