@@ -1,11 +1,6 @@
 #include "batcher.h"
 
 bool init_batcher(batcher_t *batcher) {
-  batcher->blocked_count = 0;
-  batcher->cur_epoch = 0;
-  batcher->num_running_tx = 0;
-  batcher->remaining = 0;
-  batcher->is_ro = NULL;
   if (!lock_init(&(batcher->lock))) {
     return false;
   }
@@ -13,6 +8,11 @@ bool init_batcher(batcher_t *batcher) {
     lock_cleanup(&(batcher->lock));
     return false;
   }
+  batcher->blocked_count = 0;
+  batcher->cur_epoch = 0;
+  batcher->num_running_tx = 0;
+  batcher->remaining = 0;
+  batcher->is_ro = NULL;
   return true;
 }
 
@@ -24,7 +24,7 @@ bool enter_batcher(batcher_t *batcher) {
     batcher->remaining = 1;
     batcher->num_running_tx = batcher->remaining;
     // alloc is_ro for this first tx.
-    batcher->is_ro = (bool *)malloc(sizeof(bool));
+    batcher->is_ro = malloc(sizeof(bool));
     if (batcher->is_ro == NULL) {
       return false;
     }
@@ -56,7 +56,7 @@ bool leave_batcher(region_t *region, tx_t tx) {
       batcher->is_ro = NULL;
     } else {
       batcher->is_ro =
-          (bool *)realloc(batcher->is_ro, batcher->remaining * sizeof(bool));
+          realloc(batcher->is_ro, batcher->remaining * sizeof(bool));
     }
     batcher->num_running_tx = batcher->remaining;
     commit_tx(region, tx); // commit all transacations

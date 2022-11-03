@@ -1,8 +1,7 @@
 #include "segment.h"
 
 bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
-  segment->num_words =
-      size / (alignment); // NOT /2 because we still want the correct total size
+  segment->num_words = size / (alignment);
   segment->align = alignment;
   segment->created_by_tx = tx;
   segment->has_been_modified = false;
@@ -43,7 +42,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   // allocate and init to false array of boolean flags indicating if a word has
   // been written in the epoch
   segment->is_written_in_epoch =
-      (bool *)malloc(segment->num_words * sizeof(bool));
+      (bool *)calloc(segment->num_words, sizeof(bool));
   if (!segment->is_written_in_epoch) {
     free(segment->copy_0);
     free(segment->copy_1);
@@ -52,12 +51,10 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
     return false;
   }
 
-  memset(segment->is_written_in_epoch, 0, segment->num_words * sizeof(bool));
-
   // set array of indexes of modified words
   segment->index_modified_words =
-      (int *)malloc(segment->num_words * sizeof(int));
-  if (unlikely(!segment->index_modified_words)) {
+      (int *)calloc(segment->num_words, sizeof(int));
+  if (!segment->index_modified_words) {
     free(segment->is_written_in_epoch);
     free(segment->copy_0);
     free(segment->copy_1);
@@ -66,11 +63,9 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
     return false;
   }
 
-  memset(segment->index_modified_words, -1, segment->num_words * sizeof(int));
-
   // allocate and init array of locks for words
   segment->word_locks = (lock_t *)malloc(segment->num_words * sizeof(lock_t));
-  if (unlikely(!segment->is_written_in_epoch)) {
+  if (!segment->is_written_in_epoch) {
     free(segment->index_modified_words);
     free(segment->is_written_in_epoch);
     free(segment->copy_0);
@@ -80,7 +75,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
     return false;
   }
   for (int i = 0; i < (int)segment->num_words; i++) {
-    if (unlikely(!lock_init(&(segment->word_locks[i])))) {
+    if (!lock_init(&(segment->word_locks[i]))) {
       free(segment->word_locks);
       free(segment->is_written_in_epoch);
       free(segment->copy_0);
