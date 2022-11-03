@@ -9,17 +9,17 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   atomic_store(&segment->num_writen_words, 0);
 
   // alloc words in segment
-  segment->copy_0 = (void *)calloc(segment->num_words, alignment);
+  segment->copy_0 = calloc(segment->num_words, alignment);
   if (!segment->copy_0) {
     return false;
   }
-  segment->copy_1 = (void *)calloc(segment->num_words, alignment);
+  segment->copy_1 = calloc(segment->num_words, alignment);
   if (!segment->copy_1) {
     free(segment->copy_0);
     return false;
   }
   // init supporting data structure for words (to 0)
-  segment->read_only_copy = (int *)calloc(segment->num_words, sizeof(int));
+  segment->read_only_copy = calloc(segment->num_words, sizeof(int));
   if (!segment->read_only_copy) {
     free(segment->copy_0);
     free(segment->copy_1);
@@ -28,7 +28,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   }
 
   // allocate access set and init to -1
-  segment->access_set = (tx_t *)malloc(segment->num_words * sizeof(tx_t));
+  segment->access_set = malloc(segment->num_words * sizeof(tx_t));
   if (!segment->access_set) {
     free(segment->copy_0);
     free(segment->copy_1);
@@ -64,8 +64,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t alignment) {
   }
 
   // allocate and init array of locks for words
-  segment->word_locks =
-      (struct lock_t *)malloc(segment->num_words * sizeof(struct lock_t));
+  segment->word_locks = malloc(segment->num_words * sizeof(struct lock_t));
   if (!segment->is_written_in_epoch) {
     free(segment->index_modified_words);
     free(segment->is_written_in_epoch);

@@ -154,7 +154,7 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
   }
   // get index for transacation
   tx_t id = atomic_fetch_add(&region->current_transaction_id, 1) %
-            region->batcher.num_running_tx;
+            region->batcher.n_in_epoch;
   region->batcher.is_ro[id] = is_ro; // this should be atomic or should use lock
 
   return id;

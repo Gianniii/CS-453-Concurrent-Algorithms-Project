@@ -7,11 +7,11 @@
 
 typedef struct batcher_s {
   int cur_epoch;           // keep track of the current epoch through a counter
-  int remaining;           // remaining threads in counter
-  int blocked_count;       // number of blocked transacation threads
+  int n_remaining;         // remaining threads in counter
+  int n_blocked;           // number of blocked transacation threads
+  int n_in_epoch;          // current number of transacations running in batcher
   struct lock_t lock;      // lock for batcher functions
   pthread_cond_t cond_var; // conditional variable for waking waiting threads
-  int num_running_tx;      // current number of transacations running in batcher
   bool *is_ro; // Array to keep track which transacations are read-only
 } batcher_t;
 
@@ -45,6 +45,7 @@ bool init_batcher(batcher_t *);
 bool enter_batcher(batcher_t *);
 bool leave_batcher(region_t *, tx_t tx);
 void destroy_batcher(batcher_t *);
+void prepare_batcher_for_next_epoch(batcher_t *batcher);
 
 void abort_tx(region_t *, tx_t);
 void commit_tx(region_t *, tx_t);
