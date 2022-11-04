@@ -612,10 +612,9 @@ void abort_tx(region_t *region, tx_t tx) {
         invalid_value); // tx should be a pointer to a value
     tx = tx_tmp;
 
-    // add used segment indexes for tx to freed_segment_index array (for
-    // tm_alloc)
+    // free segments created by this transacation
     if (segment->created_by_tx == tx) {
-      region->freed_segment_index[segment_index] = segment_index;
+      region->freed_segment_index[segment_index] = segment_index; 
       segment->created_by_tx = INVALID_TX;
       continue;
     }
@@ -638,48 +637,39 @@ void abort_tx(region_t *region, tx_t tx) {
   leave_batcher(region, tx);
 }
 
-/** [thread-safe] commit operations for a given transaction
+/** [thread-safe] commit operations for a given transaction (only called when last transaction leave the batcher)
  * @param region Shared memory region
  * @param tx Current transaction
  **/
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
-  int word_index;
 
-  //go through all segments
+  //iterate over segments
   for (int segment_index = 0;
-       segment_index < region->num_alloc_segments&&
-       region->freed_segment_index[segment_index] == -1;//&&
+       segment_index < region->num_alloc_segments && //go over whole region of allocated segments
+       region->freed_segment_index[segment_index] == -1;//segment is not free(i.e it is a currently allocated segment)
        segment_index++) {
     segment = &region->segment[segment_index];
 
-
-    //NO IDEA WHATS HAPPENING HERE!!!
-    // add to freed_segment_index array segments which have been freed by tx
+    //free segments that were flagged for be free in tm_free(doesnt matter by which tx tbh)
     if (segment->to_delete != INVALID_TX) {
-      region->freed_segment_index[segment_index] = segment_index; // so freed
+      region->freed_segment_index[segment_index] = segment_index; //free segment_index
       continue;
     }
 
-    if (segment->created_by_tx != INVALID_TX) {
-      segment->created_by_tx = INVALID_TX;
-    }
     // commit algorithm for words (copy written word copy into read-only copy)
     for (int i = 0; i < (int)segment->num_writen_words; i++) {
-      word_index = segment->index_modified_words[i];
-      if (segment->is_written_in_epoch[word_index] == true) {
+      int word_index = segment->index_modified_words[i];
+      if (segment->is_written_in_epoch[word_index] == true) { //if word has been written
         // swap valid copy (in case it has been written)
         segment->read_only_copy[word_index] =
             (segment->read_only_copy[word_index] == 0 ? 1 : 0);
-        // empty access set
-        segment->access_set[word_index] = INVALID_TX;
         // empty is_written_in_epoch flag
         segment->is_written_in_epoch[word_index] = false;
 
-      } else if (segment->access_set[word_index] != INVALID_TX) {
-        // empty access set
-        segment->access_set[word_index] = INVALID_TX;
       }
+      segment->access_set[word_index] = INVALID_TX;
+      
     }
     // reset flags
     memset(segment->index_modified_words, -1, segment->num_writen_words * sizeof(int));
