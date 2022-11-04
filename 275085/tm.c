@@ -507,10 +507,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
     if (index >= region->num_alloc_segments) {
       region->segment = (segment_t *)realloc(
           region->segment, sizeof(segment_t) * 2 * region->num_alloc_segments);
-      region->freed_segment_index =
-          (int *)realloc(region->freed_segment_index,
-                         sizeof(int) * 2 * region->num_alloc_segments);
-      if (region->segment == NULL || region->freed_segment_index == NULL) {
+      if (region->segment == NULL) {
         abort_tx(region, tx);
         return nomem_alloc;
       }

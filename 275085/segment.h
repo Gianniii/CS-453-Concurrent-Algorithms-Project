@@ -10,11 +10,9 @@
 #include <string.h>
 
 // Segment constants
-#define SEGMENT_SHIFT 12
-#define INIT_FREED_SEG_SIZE \
-  10 // better if it grows together with the segment array
-#define INIT_SEG_SIZE \
-  10 // 1 if you want reallocation of segments (not statically init)
+#define SEGMENT_SHIFT 12 //could be other values like 24 for example
+#define INIT_FREED_SEG_SIZE 0x10000
+#define INIT_SEG_SIZE 10
 #define INVALID_TX UINT_MAX
 
 /** segment structure (multiple per shared memory).

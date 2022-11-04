@@ -6,14 +6,15 @@
 #include <stdlib.h>
 #include "stack.h"
 
-typedef struct batcher_s {
+typedef struct batcher_s
+{
   int cur_epoch;           // keep track of the current epoch through a counter
   int n_remaining;         // remaining threads in counter
   int n_blocked;           // number of blocked transacation threads
   int n_in_epoch;          // current number of transacations running in batcher
   struct lock_t lock;      // lock for batcher functions
   pthread_cond_t cond_var; // conditional variable for waking waiting threads
-  bool *is_ro; // Array to keep track which transacations are read-only
+  bool *is_ro;             // Array to keep track which transacations are read-only
 } batcher_t;
 
 /* @param first_seg_size Size of the shared memory region (in bytes)
@@ -26,23 +27,25 @@ typedef struct batcher_s {
  *freed indexes
  * @param curren_transaction_id Max value of transaction id assigned to some tx
  **/
-typedef struct region_s {
-  _Atomic(tx_t) current_transaction_id; 
-  void *start;                          
-  segment_t *segment;                   // Array of segments
+typedef struct region_s
+{
+  _Atomic(tx_t) current_transaction_id;
+  void *start;
+  segment_t *segment;     // Array of segments
   int num_alloc_segments; // TODO changethis num_alloc_segments Number of
                           // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
   size_t align;
-  int *freed_segment_index; //array of freed segment indexes available fo reallocation
+  int *freed_segment_index;  // array of freed segment indexes available fo reallocation
   int current_segment_index; // start from 1
   struct lock_t segment_lock;
+  struct lock_t stack_lock; //for stack
   batcher_t batcher;
   size_t first_seg_size;
   stack_t free_seg_indices;
 } region_t;
 
-//we have a shared memory region between threads, what exactly re segments for? is a 1 segment per batch?
+// we have a shared memory region between threads, what exactly re segments for? is a 1 segment per batch?
 bool init_batcher(batcher_t *);
 bool enter_batcher(batcher_t *);
 bool leave_batcher(region_t *, tx_t tx);
