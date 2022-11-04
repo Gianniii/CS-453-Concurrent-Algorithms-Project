@@ -42,7 +42,6 @@ typedef struct {
   int align;               // size of a word
   tx_t created_by_tx;      // in tm_alloc
   _Atomic(tx_t) to_delete; // in tm_free
-  bool has_been_modified;
   int *index_modified_words;
   _Atomic(int) num_writen_words;
 } segment_t;

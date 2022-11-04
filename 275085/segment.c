@@ -5,7 +5,6 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   segment->num_words = size / (align);
   segment->align = align;
   segment->created_by_tx = tx;
-  segment->has_been_modified = false;
   atomic_store(&segment->to_delete, INVALID_TX);
   atomic_store(&segment->num_writen_words, 0);
 

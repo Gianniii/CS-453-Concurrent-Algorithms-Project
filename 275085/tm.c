@@ -235,11 +235,6 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
       return false; // abort_tx
     }
   }
-
-  // mark that segment has been modified only if read-write tx
-  if (!is_ro) {
-    segment->has_been_modified = true;
-  }
   return true;
 }
 
@@ -380,7 +375,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   }
 
   // retrieve segment and word number
-  word_index = extract_word_num_from_virt_addr(target);
+  word_index = extract_word_num_from_virt_addr(target); //TODO figure out if this is addr or idx
   segment_index = extract_seg_id_from_virt_addr(target);
 
   // check that source and target addresses are a positive multiple of the
@@ -392,7 +387,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   }
 
   // calculate correct index (before it was * word_size)
-  word_index = word_index / region->segment[segment_index].align;
+  word_index = word_index/ region->segment[segment_index].align;
 
   // check address correctness
   if (segment_index < 0 || word_index < 0) {
@@ -419,7 +414,6 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
       return false; // abort_tx
     }
   }
-  segment->has_been_modified = true;
   return true;
 }
 
@@ -582,9 +576,6 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
     abort_tx(region, tx);
     return false; // abort_tx
   }
-  // mark that segment has been modified
-  region->segment[segment_index].has_been_modified = true;
-  
   return true;
 }
 
@@ -608,8 +599,7 @@ void abort_tx(region_t *region, tx_t tx) {
   // for all segments
   for (int segment_index = 0;
        segment_index < max_segment_index &&
-       region->freed_segment_index[segment_index] == -1 &&
-       region->segment[segment_index].has_been_modified == true;
+       region->freed_segment_index[segment_index] == -1;
        segment_index++) {
     segment = &region->segment[segment_index];
 
@@ -656,19 +646,21 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   int word_index;
 
+  //go through all segments
   for (int segment_index = 0;
-       segment_index < region->num_existing_segments &&
-       region->freed_segment_index[segment_index] == -1 &&
-       region->segment[segment_index].has_been_modified == true;
+       segment_index < region->num_alloc_segments&&
+       region->freed_segment_index[segment_index] == -1;//&&
        segment_index++) {
     segment = &region->segment[segment_index];
 
+
+    //NO IDEA WHATS HAPPENING HERE!!!
     // add to freed_segment_index array segments which have been freed by tx
     if (segment->to_delete != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
       continue;
     }
-    // add used segment indexes for tx to freed_segment_index array
+
     if (segment->created_by_tx != INVALID_TX) {
       segment->created_by_tx = INVALID_TX;
     }
@@ -690,9 +682,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
       }
     }
     // reset flags
-    segment->has_been_modified = false;
-    memset(segment->index_modified_words, -1,
-           segment->num_writen_words * sizeof(int));
+    memset(segment->index_modified_words, -1, segment->num_writen_words * sizeof(int));
     segment->num_writen_words = 0;
   }
 }
