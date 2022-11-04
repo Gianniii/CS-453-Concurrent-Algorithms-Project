@@ -558,11 +558,10 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   word_index = extract_word_num_from_virt_addr(target);
   segment_index = extract_seg_id_from_virt_addr(target);
 
-  // check address correctness (can't free 1st segment or an address which is
-  // not pointing to the 1st word)
+  // cant free first segment or addr of first word
   if (segment_index == 0 || word_index != 0) {
     abort_tx(region, tx);
-    return false; // abort_tx
+    return false;
   }
 
   // free (set to tx to_delete) segment from array of segments
@@ -574,7 +573,7 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   // segment after some other transaction
   if (region->segment[segment_index].to_delete != tx) {
     abort_tx(region, tx);
-    return false; // abort_tx
+    return false;
   }
   return true;
 }
@@ -665,11 +664,10 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
         segment->read_only_copy[word_index] =
             (segment->read_only_copy[word_index] == 0 ? 1 : 0);
         // empty is_written_in_epoch flag
-        segment->is_written_in_epoch[word_index] = false;
+        segment->is_written_in_epoch[word_index] = false; 
 
       }
       segment->access_set[word_index] = INVALID_TX;
-      
     }
     // reset flags
     memset(segment->index_modified_words, -1, segment->num_writen_words * sizeof(int));
