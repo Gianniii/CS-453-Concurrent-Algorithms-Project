@@ -651,10 +651,10 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
        segment_index++) {
     segment = &region->segment[segment_index];
 
-    //free segments that were flagged for be free in tm_free(doesnt matter by which tx tbh)
-    if (segment->to_delete != INVALID_TX) {
+    //free segments that were flagged for be freed if epoch committed
+    if (segment->to_delete != INVALID_TX) { //TODO change INVALID_TX to something else
       region->freed_segment_index[segment_index] = segment_index; //free segment_index
-      continue;
+      continue; //TODO avoid using continue!!!
     }
 
     // commit algorithm for words (copy written word copy into read-only copy)
