@@ -95,7 +95,7 @@ shared_t tm_create(size_t size, size_t align) {
   region->align = align;
   region->num_alloc_segments = INIT_SEG_SIZE;
 
-  region->current_segment_index = 1;
+  region->num_existing_segments = 1;
   atomic_store(&region->current_transaction_id, (tx_t)1);
 
   return region;
@@ -108,7 +108,7 @@ void tm_destroy(shared_t shared) {
   region_t *region = (region_t *)shared;
 
   // free segment and related
-  for (int i = 0; i < region->current_segment_index; i++) {
+  for (int i = 0; i < region->num_existing_segments; i++) {
     segment_t seg = region->segment[i];
     free(seg.copy_0);
     free(seg.copy_1);
@@ -206,7 +206,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   // shared memory region’s alignment, otherwise the behavior is undefined.
   if (word_index % region->align != 0 ||
       (uintptr_t)source % region->align != 0 ||
-      segment_index > region->current_segment_index) {
+      segment_index > region->num_existing_segments) {
     abort_tx(region, tx);
   }
 
@@ -253,6 +253,21 @@ void read_correct_copy(int word_index, void *target, segment_t *segment,
     memcpy(target, segment->copy_1 + (word_index * segment->align),
            segment->align);
   }
+}
+
+bool allocate_more_segments(region_t* region) {
+  //if index is beyond number of allocated segments then allocated another one
+    if (region->num_existing_segments >= region->num_alloc_segments) {
+      region->segment = (segment_t *)realloc(
+          region->segment, sizeof(segment_t) * region->num_alloc_segments+1);
+      if (region->segment == NULL) { //check realloc is successfull
+        return false;
+      }
+      // update number of allocated segments
+      region->num_alloc_segments += 1;
+    }
+  return true;
+
 }
 
 /** [thread-safe] Read word operation.
@@ -481,7 +496,6 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
  **/
 alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   region_t *region = (region_t *)shared;
-  segment_t segment;
   int index = -1;
   // check correct alignment of size
   if (size <= 0 || size % region->align != 0) {
@@ -490,56 +504,39 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   }
 
   // check if there is a shared index for segment
+  //printf("%d", region->num_existing_segments);
   lock_acquire(&(region->segment_lock));
-  for (int i = 0; i < region->current_segment_index; i++) {
+  for (int i = 0; i < region->num_existing_segments; i++) {
     if (region->freed_segment_index[i] != -1) {
       index = i;
       break;
     }
   }
-  // if no index found in freed, calculate new one
-  if (index == -1) {
-    // fetch and increment
-    index = region->current_segment_index;
-    region->current_segment_index++;
+  if (index == -1) { //must increase number of existing segments
+    index = region->num_existing_segments; 
+    region->num_existing_segments++;
 
-    // acquire realloc lock
-    if (index >= region->num_alloc_segments) {
-      region->segment = (segment_t *)realloc(
-          region->segment, sizeof(segment_t) * 2 * region->num_alloc_segments);
-      if (region->segment == NULL) {
-        abort_tx(region, tx);
-        return nomem_alloc;
-      }
-
-      // update number of allocated segments
-      region->num_alloc_segments *= 2;
-    }
-
-    // init segment
-    if (!segment_init(&segment, tx, size, region->align)) {
+    //might have to allocate more segments to accomodate this extra segment
+    if(!allocate_more_segments(region)){
       return nomem_alloc;
     }
-
-    // insert segment into segment array and set freed to occupied
+    //add segment structure to region
+    segment_t segment;
     region->segment[index] = segment;
 
-  } else {
-    // init segment
-    if (!segment_init(&region->segment[index], tx, size, region->align)) {
-      return nomem_alloc;
-    }
+  } 
+    
+  if (!segment_init(&region->segment[index], tx, size, region->align)) {
+    return nomem_alloc;
   }
 
   // mark that segment has been modified
   region->segment[index].has_been_modified = true;
-
   // update support array freed_segment_index
   region->freed_segment_index[index] = -1;
-  lock_release(&(region->segment_lock));
-
-  //return opaque ptr to addr
   *target = get_virt_addr(index);
+  
+  lock_release(&(region->segment_lock));
   return success_alloc;
 }
 
@@ -599,7 +596,7 @@ void abort_tx(region_t *region, tx_t tx) {
 
   // store current max segment index
   lock_acquire(&(region->segment_lock));
-  max_segment_index = region->current_segment_index;
+  max_segment_index = region->num_existing_segments;
   lock_release(&(region->segment_lock));
 
   // for all segments
@@ -654,7 +651,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
   int word_index;
 
   for (int segment_index = 0;
-       segment_index < region->current_segment_index &&
+       segment_index < region->num_existing_segments &&
        region->freed_segment_index[segment_index] == -1 &&
        region->segment[segment_index].has_been_modified == true;
        segment_index++) {

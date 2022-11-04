@@ -36,8 +36,8 @@ typedef struct region_s
                           // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
   size_t align;
-  int *freed_segment_index;  // array of freed segment indexes available fo reallocation
-  int current_segment_index; // start from 1
+  int *freed_segment_index;  // array of freed segment indexes available fo reallocation, (-1 if not available)
+  int num_existing_segments; // start from 1
   struct lock_t segment_lock;
   struct lock_t stack_lock; //for stack
   batcher_t batcher;
