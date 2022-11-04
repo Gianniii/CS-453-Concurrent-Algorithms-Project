@@ -237,7 +237,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   }
 
   // mark that segment has been modified only if read-write tx
-  if (!is_ro && segment->has_been_modified == false) {
+  if (!is_ro) {
     segment->has_been_modified = true;
   }
   return true;
@@ -419,11 +419,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
       return false; // abort_tx
     }
   }
-
-  // mark that segment has been modified
-  if (segment->has_been_modified == false) {
-    segment->has_been_modified = true;
-  }
+  segment->has_been_modified = true;
   return true;
 }
 
@@ -542,13 +538,11 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   if (!segment_init(&region->segment[index], tx, size, region->align)) {
     return nomem_alloc;
   }
-
-  // mark that segment has been modified
-  region->segment[index].has_been_modified = true;
-  // update support array freed_segment_index
+  //no longer free index
   region->freed_segment_index[index] = -1;
+
+  //set target to virtual address of the segment
   *target = get_virt_addr(index);
-  
   lock_release(&(region->segment_lock));
   return success_alloc;
 }
@@ -589,9 +583,8 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
     return false; // abort_tx
   }
   // mark that segment has been modified
-  if (region->segment[segment_index].has_been_modified == false) {
-    region->segment[segment_index].has_been_modified = true;
-  }
+  region->segment[segment_index].has_been_modified = true;
+  
   return true;
 }
 
