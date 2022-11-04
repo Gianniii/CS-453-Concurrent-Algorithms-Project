@@ -26,6 +26,7 @@
 #include "macros.h"
 #include "segment.h"
 #include "tm.h"
+#include "stack.h"
 
 /** Create (i.e. allocate + init) a new shared memory region, with one first
  *non-free-able allocated segment of the requested size and alignment.

@@ -4,6 +4,7 @@
 #include "segment.h"
 #include "tm.h"
 #include <stdlib.h>
+#include "stack.h"
 
 typedef struct batcher_s {
   int cur_epoch;           // keep track of the current epoch through a counter
@@ -38,8 +39,10 @@ typedef struct region_s {
   struct lock_t segment_lock;
   batcher_t batcher;
   size_t first_seg_size;
+  stack_t free_seg_indices;
 } region_t;
 
+//we have a shared memory region between threads, what exactly re segments for? is a 1 segment per batch?
 bool init_batcher(batcher_t *);
 bool enter_batcher(batcher_t *);
 bool leave_batcher(region_t *, tx_t tx);
