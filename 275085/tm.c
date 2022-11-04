@@ -88,7 +88,7 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  region->start = encode_segment_address(0);
+  region->start = get_virt_addr(0);
 
   region->first_seg_size = size;
   region->align = align;
@@ -198,7 +198,8 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   }
 
   // retrieve segment and word number
-  decode_segment_address(source, &segment_index, &word_index);
+  word_index = extract_word_num_from_virt_addr(source);
+  segment_index = extract_seg_id_from_virt_addr(source);
 
   // check that source and target addresses are a positive multiple of the
   // shared memory region’s alignment, otherwise the behavior is undefined.
@@ -346,7 +347,8 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   }
 
   // retrieve segment and word number
-  decode_segment_address(target, &segment_index, &word_index);
+  word_index = extract_word_num_from_virt_addr(target);
+  segment_index = extract_seg_id_from_virt_addr(target);
 
   // check that source and target addresses are a positive multiple of the
   // shared memory region’s alignment, otherwise the behavior is undefined.
@@ -538,8 +540,8 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   region->freed_segment_index[index] = -1;
   lock_release(&(region->segment_lock));
 
-  // return encoded address to segment
-  *target = encode_segment_address(index);
+  //return opaque ptr to addr
+  *target = get_virt_addr(index);
   return success_alloc;
 }
 
@@ -557,7 +559,8 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   region_t *region = (region_t *)shared;
 
   // retrieve segment and word number
-  decode_segment_address(target, &segment_index, &word_index);
+  word_index = extract_word_num_from_virt_addr(target);
+  segment_index = extract_seg_id_from_virt_addr(target);
 
   // check address correctness (can't free 1st segment or an address which is
   // not pointing to the 1st word)

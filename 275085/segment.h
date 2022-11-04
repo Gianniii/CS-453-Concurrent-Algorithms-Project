@@ -11,9 +11,9 @@
 
 // Segment constants
 #define SEGMENT_SHIFT 24
-#define INIT_FREED_SEG_SIZE                                                    \
+#define INIT_FREED_SEG_SIZE \
   10 // better if it grows together with the segment array
-#define INIT_SEG_SIZE                                                          \
+#define INIT_SEG_SIZE \
   10 // 1 if you want reallocation of segments (not statically init)
 #define INVALID_TX UINT_MAX
 
@@ -30,14 +30,15 @@
  * @param cnt_index_modified_words Atomic counter incremented every time
  *there is an operation on word
  **/
-typedef struct segment_s {
-  size_t num_words;    // num words in segment
-  void *copy_0;        // Copy 0 of segments words (accessed shifting a pointer)
-  void *copy_1;        // Copy 1 of segments words (accessed shifting a pointer)
-  int *read_only_copy; // Array of flags for read-only copy
-  tx_t *access_set; // Array of read-write tx which have accessed the word (the
-                    // first to access the word(read or write) will own it for
-                    // the epoch)
+typedef struct segment_s
+{
+  size_t num_words;          // num words in segment
+  void *copy_0;              // Copy 0 of segments words (accessed shifting a pointer)
+  void *copy_1;              // Copy 1 of segments words (accessed shifting a pointer)
+  int *read_only_copy;       // Array of flags for read-only copy
+  tx_t *access_set;          // Array of read-write tx which have accessed the word (the
+                             // first to access the word(read or write) will own it for
+                             // the epoch)
   bool *is_written_in_epoch; // Array of boolean to flag if the word has been
                              // written
   struct lock_t *word_locks;
@@ -50,8 +51,9 @@ typedef struct segment_s {
 } segment_t;
 
 bool segment_init(segment_t *, tx_t, size_t, size_t);
-void *encode_segment_address(int);
-void decode_segment_address(void const *, int *, int *);
+void *get_virt_addr(int);
+int extract_word_num_from_virt_addr(void const *addr);
+int extract_seg_id_from_virt_addr(void const *addr);
 
 alloc_t read_word(int, void *, segment_t *, bool, tx_t);
 alloc_t write_word(int, const void *, segment_t *, tx_t);
