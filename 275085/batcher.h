@@ -26,14 +26,14 @@ typedef struct batcher_s {
  * @param curren_transaction_id Max value of transaction id assigned to some tx
  **/
 typedef struct region_s {
-  _Atomic(tx_t) current_transaction_id; // start from 1
-  void *start;                          // start of shared memory region
-  segment_t *segment;                   // Array for its segments
+  _Atomic(tx_t) current_transaction_id; 
+  void *start;                          
+  segment_t *segment;                   // Array of segments
   int num_alloc_segments; // TODO changethis num_alloc_segments Number of
-                          // allocated segments (used to keep track
+                          // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
   size_t align;
-  int *freed_segment_index;
+  int *freed_segment_index; //array of freed segment indexes available fo reallocation
   int current_segment_index; // start from 1
   struct lock_t segment_lock;
   batcher_t batcher;

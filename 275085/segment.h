@@ -10,7 +10,7 @@
 #include <string.h>
 
 // Segment constants
-#define SEGMENT_SHIFT 24
+#define SEGMENT_SHIFT 12
 #define INIT_FREED_SEG_SIZE \
   10 // better if it grows together with the segment array
 #define INIT_SEG_SIZE \
@@ -30,8 +30,7 @@
  * @param cnt_index_modified_words Atomic counter incremented every time
  *there is an operation on word
  **/
-typedef struct segment_s
-{
+typedef struct {
   size_t num_words;          // num words in segment
   void *copy_0;              // Copy 0 of segments words (accessed shifting a pointer)
   void *copy_1;              // Copy 1 of segments words (accessed shifting a pointer)
@@ -50,7 +49,7 @@ typedef struct segment_s
   _Atomic(int) num_writen_words;
 } segment_t;
 
-bool segment_init(segment_t *, tx_t, size_t, size_t);
+bool segment_init(segment_t *seg, size_t size, size_t align, tx_t tx);
 void *get_virt_addr(int);
 int extract_word_num_from_virt_addr(void const *addr);
 int extract_seg_id_from_virt_addr(void const *addr);

@@ -468,7 +468,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
 }
 
 /** [thread-safe] Memory allocation in the given transaction. (should be
- *called a lot)
+ *called a lot)  (allocated a new segment!)
  * @param shared Shared memory region associated with the transaction
  * @param tx     Transaction to use
  * @param size   Allocation requested size (in bytes), must be a positive
