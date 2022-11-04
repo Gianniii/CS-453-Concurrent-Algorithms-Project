@@ -243,7 +243,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   return true;
 }
 
-// UTILS
+// UTILS ===================================================================================
 void read_correct_copy(int word_index, void *target, segment_t *segment,
                        int copy) {
   if (copy == 0) {
@@ -269,6 +269,23 @@ bool allocate_more_segments(region_t* region) {
   return true;
 
 }
+
+bool add_segment_with_index(region_t* region, int idx) {
+  region->num_existing_segments++;
+  //might have to allocate more segments to accomodate this extra segment
+  if(!allocate_more_segments(region)){
+    return false;
+  }
+  //add segment structure to region
+  //TODO Make region contains list of segment pointers! so can allocated all pointers at start
+  //but will have to remember to free all the pointers within... so maybe not cool
+  segment_t segment;
+  region->segment[idx] = segment; //copy segment
+  //printf("goes here\n");
+  return true;
+}
+
+//=========================================================================================
 
 /** [thread-safe] Read word operation.
  * @param word_index Index of word into consideration
@@ -496,7 +513,6 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
  **/
 alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   region_t *region = (region_t *)shared;
-  int index = -1;
   // check correct alignment of size
   if (size <= 0 || size % region->align != 0) {
     abort_tx(region, tx);
@@ -506,26 +522,23 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   // check if there is a shared index for segment
   //printf("%d", region->num_existing_segments);
   lock_acquire(&(region->segment_lock));
-  for (int i = 0; i < region->num_existing_segments; i++) {
-    if (region->freed_segment_index[i] != -1) {
+  int i = 0;
+  int index = -1;
+  //check if can reuse one of the already allocated segments
+  while(index == -1 && i < region->num_existing_segments) {
+    if(region->freed_segment_index[i] != -1) {
       index = i;
-      break;
     }
+    i++;
   }
   if (index == -1) { //must increase number of existing segments
     index = region->num_existing_segments; 
-    region->num_existing_segments++;
-
-    //might have to allocate more segments to accomodate this extra segment
-    if(!allocate_more_segments(region)){
+    if(!add_segment_with_index(region, index)){
       return nomem_alloc;
     }
-    //add segment structure to region
-    segment_t segment;
-    region->segment[index] = segment;
-
   } 
-    
+  
+  //intialize new segment with calculated index
   if (!segment_init(&region->segment[index], tx, size, region->align)) {
     return nomem_alloc;
   }
