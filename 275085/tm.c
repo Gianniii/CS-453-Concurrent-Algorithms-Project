@@ -307,7 +307,7 @@ bool add_segment_with_index(region_t* region, int idx) {
 }
 
 //=========================================================================================
-
+//Like in project description, slightly simplified the if/else to something i understood better but outcome is the same
 alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
                   tx_t tx) {
 
@@ -408,18 +408,10 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   return true;
 }
 
-/** [thread-safe] Write word operation.
- * @param word_index Index of word into consideration
- * @param source Source start address (in a private region)
- * @param segment Pointer to the segment into consideration
- * @param tx Current transaction identifier
- * @return Whether the whole transaction can continue (success/nomem), or not
- *(abort_alloc)
- **/
+//Like in project description
 alloc_t write_word(int word_index, const void *source, segment_t *segment,
                    tx_t tx) {
-  int readable_copy;
-  readable_copy = segment->cp_is_ro[word_index];
+  int ro_copy = segment->cp_is_ro[word_index];
 
   // acquire word lock
   lock_acquire(&segment->word_locks[word_index]);
@@ -431,7 +423,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
 
     // if tx in the access set
     if (segment->access_set[word_index] == tx) {
-      write_to_correct_copy(word_index, source, segment, readable_copy, tx);
+      write_to_correct_copy(word_index, source, segment, ro_copy, tx);
       return success_alloc;
     } else {
       return abort_alloc;
@@ -443,7 +435,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
       lock_release(&segment->word_locks[word_index]);
       return abort_alloc;
     } else {
-      write_to_correct_copy(word_index, source, segment, readable_copy, tx);
+      write_to_correct_copy(word_index, source, segment, ro_copy, tx);
       lock_release(&segment->word_locks[word_index]);
       return success_alloc;
     }
