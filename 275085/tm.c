@@ -179,32 +179,21 @@ bool tm_end(shared_t shared, tx_t tx) {
 bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
              void *target) {
   region_t *region = (region_t *)shared;
-  segment_t *segment;
-  int segment_index;
-  int word_index;
-  int num_words_to_read;
-  alloc_t result;
-  int offset;
   
+  //get necessary data
   bool is_ro = region->batcher.is_ro[tx];
+  int n_words = size / region->align;
+  int word_offset = extract_word_offset_from_virt_addr(source);
+  int segment_index = extract_seg_id_from_virt_addr(source);
+  int word_index = word_offset / region->segment[segment_index].align;
+  segment_t* segment = &region->segment[segment_index];
 
-  // retrieve segment and word number
-  word_index = extract_word_offset_from_virt_addr(source);
-  segment_index = extract_seg_id_from_virt_addr(source);
-  // find true index (divide by word size)
-  word_index = word_index / region->segment[segment_index].align;
-
-  // calculate number of words to be read in segment
-  num_words_to_read = size / region->align;
-  // get segment
-  segment = &region->segment[segment_index];
-
-  // loop through all word indexes (starting from the passed one)
+  // Read num_words
+  int offset = 0;
   for (int curr_word_index = word_index;
-       curr_word_index < word_index + num_words_to_read; curr_word_index++) {
+       curr_word_index < word_index + n_words; curr_word_index++) {
     offset = (curr_word_index - word_index) * segment->align;
-    result = read_word(curr_word_index, target + (offset), segment, is_ro, tx);
-    if (result == abort_alloc) {
+    if(read_word(curr_word_index, target + (offset), segment, is_ro, tx) == abort_alloc){;
       abort_tx(region, tx);
       return false; // abort_tx
     }
