@@ -25,8 +25,8 @@
 #include "lock.h"
 #include "macros.h"
 #include "segment.h"
-#include "tm.h"
 #include "stack.h"
+#include "tm.h"
 
 /** Create (i.e. allocate + init) a new shared memory region, with one first
  *non-free-able allocated segment of the requested size and alignment.
@@ -115,7 +115,6 @@ void tm_destroy(shared_t shared) {
     free(seg.cp_is_ro);
     free(seg.access_set);
     free(seg.is_written_in_epoch);
-    free(seg.index_modified_words);
     for (size_t i = 0; i < seg.n_words; i++) {
       lock_cleanup(&(seg.word_locks[i]));
     }
@@ -157,9 +156,10 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
   return id;
 }
 
-
 bool tm_end(shared_t shared, tx_t tx) {
-  return leave_batcher((region_t *)shared, tx); //will never need to return false because we we notify when abort
+  return leave_batcher(
+      (region_t *)shared,
+      tx); // will never need to return false because we we notify when abort
 }
 
 /** [thread-safe] Read operation in the given transaction, source in the shared
@@ -175,21 +175,24 @@ bool tm_end(shared_t shared, tx_t tx) {
 bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
              void *target) {
   region_t *region = (region_t *)shared;
-  
-  //get necessary data
+
+  // get necessary data
   bool is_ro = region->batcher.is_ro[tx];
   int n_words = size / region->align;
   int segment_index = extract_seg_id_from_virt_addr(source);
-  int word_index = extract_word_index_from_virt_addr(source, region->segment[segment_index].align);
-  segment_t* segment = &region->segment[segment_index];
+  int word_index = extract_word_index_from_virt_addr(
+      source, region->segment[segment_index].align);
+  segment_t *segment = &region->segment[segment_index];
 
   // Read words, if fail to read a word then abort
   int curr_word_offset = 0;
   int read_idx = word_index;
-  while(read_idx < word_index + n_words) {
-    if(read_word(read_idx, target + (curr_word_offset *segment->align), segment, is_ro, tx) == abort_alloc){;
+  while (read_idx < word_index + n_words) {
+    if (read_word(read_idx, target + (curr_word_offset * segment->align),
+                  segment, is_ro, tx) == abort_alloc) {
+      ;
       abort_tx(region, tx);
-      return false; 
+      return false;
     }
     read_idx++;
     curr_word_offset++;
@@ -197,63 +200,64 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   return true;
 }
 
-// UTILS ===================================================================================
-void add_to_access_set(int word_index, segment_t* seg, tx_t tx) {
-  if(seg->access_set[word_index] == INVALID_TX) {
-    int next_free_idx = atomic_fetch_add(&seg->num_writen_words, 1);
-    seg->index_modified_words[next_free_idx] = word_index;
+// UTILS
+// ===================================================================================
+void add_to_access_set(int word_index, segment_t *seg, tx_t tx) {
+  if (seg->access_set[word_index] == INVALID_TX) {
+    // here could push index of modified words
     seg->access_set[word_index] = tx;
   }
 }
 
-void read_correct_copy(int word_index, void *target, segment_t *seg,
-                       int copy) {
-  void* start_words_addr = copy == 0 ? seg->cp0 : seg->cp1;
-  memcpy(target, start_words_addr + (word_index * seg->align),seg->align);
+void read_correct_copy(int word_index, void *target, segment_t *seg, int copy) {
+  void *start_words_addr = copy == 0 ? seg->cp0 : seg->cp1;
+  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
 }
 
-void write_to_correct_copy(int word_index, const void* src, segment_t* seg, int copy, tx_t tx){
-  seg->is_written_in_epoch[word_index] = true; //set is_written flag to true; 
-  void* start_words_addr = copy == 0 ? seg->cp1 : seg->cp0;
+void write_to_correct_copy(int word_index, const void *src, segment_t *seg,
+                           int copy, tx_t tx) {
+  seg->is_written_in_epoch[word_index] = true; // set is_written flag to true;
+  void *start_words_addr = copy == 0 ? seg->cp1 : seg->cp0;
   memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
-  //if word has not been written in before, update supporting datastructures
+  // if word has not been written in before, update supporting datastructures
   if (seg->access_set[word_index] == INVALID_TX) {
-      add_to_access_set(word_index, seg, tx);   
+    add_to_access_set(word_index, seg, tx);
   }
 }
 
-bool allocate_more_segments(region_t* region) {
-  //if index is beyond number of allocated segments then allocated another one
-    if (region->num_existing_segments >= region->num_alloc_segments) {
-      region->segment = (segment_t *)realloc(
-          region->segment, sizeof(segment_t) * region->num_alloc_segments+1);
-      if (region->segment == NULL) { //check realloc is successfull
-        return false;
-      }
-      // update number of allocated segments
-      region->num_alloc_segments += 1;
+bool allocate_more_segments(region_t *region) {
+  // if index is beyond number of allocated segments then allocated another one
+  if (region->num_existing_segments >= region->num_alloc_segments) {
+    region->segment = (segment_t *)realloc(
+        region->segment, sizeof(segment_t) * region->num_alloc_segments + 1);
+    if (region->segment == NULL) { // check realloc is successfull
+      return false;
     }
+    // update number of allocated segments
+    region->num_alloc_segments += 1;
+  }
   return true;
-
 }
 
-bool add_segment_with_index(region_t* region, int idx) {
+bool add_segment_with_index(region_t *region, int idx) {
   region->num_existing_segments++;
-  //might have to allocate more segments to accomodate this extra segment
-  if(!allocate_more_segments(region)){
+  // might have to allocate more segments to accomodate this extra segment
+  if (!allocate_more_segments(region)) {
     return false;
   }
-  //add segment structure to region
-  //TODO Make region contains list of segment pointers! so can allocated all pointers at start
-  //but will have to remember to free all the pointers within... so maybe not cool
+  // add segment structure to region
+  // TODO Make region contains list of segment pointers! so can allocated all
+  // pointers at start but will have to remember to free all the pointers
+  // within... so maybe not cool
   segment_t segment;
-  region->segment[idx] = segment; //copy segment
-  //printf("goes here\n");
+  region->segment[idx] = segment; // copy segment
+  // printf("goes here\n");
   return true;
 }
 
 //=========================================================================================
-//Like in project description, slightly simplified the if/else to something i understood better but outcome is the same
+// Like in project description, slightly simplified the if/else to something i
+// understood better but outcome is the same
 alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
                   tx_t tx) {
 
@@ -262,24 +266,30 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
   if (is_ro == true) {
     read_correct_copy(word_index, target, segment, ro_copy);
     return success_alloc;
-  } else { //r_w transacation
+  } else { // r_w transacation
     lock_acquire(&segment->word_locks[word_index]);
-    //if word not written, can read the r_o copy
-    if(segment->is_written_in_epoch[word_index] == false) {
-      //if first access and not read only transaction
-      if (segment->access_set[word_index] == INVALID_TX ) {
-        add_to_access_set(word_index, segment, tx);   
+    // if word not written, can read the r_o copy
+    if (segment->is_written_in_epoch[word_index] == false) {
+      // if first access and not read only transaction
+      if (segment->access_set[word_index] == INVALID_TX) {
+        add_to_access_set(word_index, segment, tx);
       }
-      lock_release(&segment->word_locks[word_index]); //allow parallel reads on same word
+      lock_release(
+          &segment
+               ->word_locks[word_index]); // allow parallel reads on same word
       read_correct_copy(word_index, target, segment, ro_copy);
       return success_alloc;
-    } 
+    }
 
-    // if word written in current epoch by "this" transcation then can read, else abort
-    if (segment->is_written_in_epoch[word_index] == true && segment->access_set[word_index] == tx) {
-        lock_release(&segment->word_locks[word_index]); //allow parallel reads on same word
-        read_correct_copy(word_index, target, segment, write_copy);
-        return success_alloc;
+    // if word written in current epoch by "this" transcation then can read,
+    // else abort
+    if (segment->is_written_in_epoch[word_index] == true &&
+        segment->access_set[word_index] == tx) {
+      lock_release(
+          &segment
+               ->word_locks[word_index]); // allow parallel reads on same word
+      read_correct_copy(word_index, target, segment, write_copy);
+      return success_alloc;
     } else {
       lock_release(&segment->word_locks[word_index]);
       return abort_alloc;
@@ -301,16 +311,19 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
   int segment_index = extract_seg_id_from_virt_addr(target);
-  segment_t* segment = &region->segment[segment_index];
-  int word_index = extract_word_index_from_virt_addr(target, region->segment[segment_index].align);
+  segment_t *segment = &region->segment[segment_index];
+  int word_index = extract_word_index_from_virt_addr(
+      target, region->segment[segment_index].align);
   int n_words = size / region->align;
   int curr_word_offset = 0;
   int write_idx = word_index;
-  
-  while(write_idx < word_index + n_words) {
-    if(write_word(write_idx, source + curr_word_offset, segment, tx) == abort_alloc){;
+
+  while (write_idx < word_index + n_words) {
+    if (write_word(write_idx, source + curr_word_offset, segment, tx) ==
+        abort_alloc) {
+      ;
       abort_tx(region, tx);
-      return false; 
+      return false;
     }
     write_idx++;
     curr_word_offset++;
@@ -318,7 +331,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   return true;
 }
 
-//Like in project description
+// Like in project description
 alloc_t write_word(int word_index, const void *source, segment_t *segment,
                    tx_t tx) {
   int ro_copy = segment->cp_is_ro[word_index];
@@ -338,7 +351,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
     } else {
       return abort_alloc;
     }
-  } else { //word has not been written before
+  } else { // word has not been written before
     // if one other tx in access set
     if (segment->access_set[word_index] != tx &&
         segment->access_set[word_index] != INVALID_TX) {
@@ -367,32 +380,32 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   region_t *region = (region_t *)shared;
 
   // check if there is a shared index for segment
-  //printf("%d", region->num_existing_segments);
+  // printf("%d", region->num_existing_segments);
   lock_acquire(&(region->segment_lock));
   int i = 0;
   int index = -1;
-  //check if can reuse one of the already allocated segments
-  while(index == -1 && i < region->num_existing_segments) {
-    if(region->freed_segment_index[i] != -1) {
+  // check if can reuse one of the already allocated segments
+  while (index == -1 && i < region->num_existing_segments) {
+    if (region->freed_segment_index[i] != -1) {
       index = i;
     }
     i++;
   }
-  if (index == -1) { //must increase number of existing segments
-    index = region->num_existing_segments; 
-    if(!add_segment_with_index(region, index)){
+  if (index == -1) { // must increase number of existing segments
+    index = region->num_existing_segments;
+    if (!add_segment_with_index(region, index)) {
       return nomem_alloc;
     }
-  } 
-  
-  //intialize new segment with calculated index
+  }
+
+  // intialize new segment with calculated index
   if (!segment_init(&region->segment[index], tx, size, region->align)) {
     return nomem_alloc;
   }
-  //no longer free index
+  // no longer free index
   region->freed_segment_index[index] = -1;
 
-  //set target to virtual address of the segment
+  // set target to virtual address of the segment
   *target = get_virt_addr(index);
   lock_release(&(region->segment_lock));
   return success_alloc;
@@ -431,20 +444,17 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
 void abort_tx(region_t *region, tx_t tx) {
   unsigned long int invalid_value = INVALID_TX;
   int max_segment_index;
-  int max_word_index;
   segment_t *segment;
   tx_t tx_tmp;
-  int word_index;
 
   // store current max segment index
-  lock_acquire(&(region->segment_lock)); //TODO use atomic variable!!!
+  lock_acquire(&(region->segment_lock)); // TODO use atomic variable!!!
   max_segment_index = region->num_existing_segments;
   lock_release(&(region->segment_lock));
 
   // for all segments
-  for (int segment_index = 0;
-       segment_index < max_segment_index &&
-       region->freed_segment_index[segment_index] == -1;
+  for (int segment_index = 0; segment_index < max_segment_index &&
+                              region->freed_segment_index[segment_index] == -1;
        segment_index++) {
     segment = &region->segment[segment_index];
 
@@ -465,17 +475,17 @@ void abort_tx(region_t *region, tx_t tx) {
       continue;
     }
 
-    max_word_index = atomic_load(&segment->num_writen_words);
-
     // roolback write operations on each word performed by tx
-    for (int i = 0; i < max_word_index; i++) {
-      word_index = segment->index_modified_words[i];
-      if (segment->access_set[word_index] == tx &&
-          segment->is_written_in_epoch[word_index] == true) {
-        lock_acquire(&segment->word_locks[word_index]);
-        segment->access_set[word_index] = INVALID_TX;
-        segment->is_written_in_epoch[word_index] = false;
-        lock_release(&segment->word_locks[word_index]);
+    for (size_t i = 0; i < segment->n_words;
+         i++) { // TODO: Can optimize by using stack of modified word_indexes
+                // instead of iterating over all words and checking if they have
+                // been written
+      if (segment->access_set[i] == tx &&
+          segment->is_written_in_epoch[i] == true) {
+        lock_acquire(&segment->word_locks[i]);
+        segment->access_set[i] = INVALID_TX;
+        segment->is_written_in_epoch[i] = false;
+        lock_release(&segment->word_locks[i]);
       }
     }
   }
@@ -489,17 +499,13 @@ void abort_tx(region_t *region, tx_t tx) {
  **/
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
-  int word_index;
-
-  //go through all segments
-  for (int segment_index = 0;
-       segment_index < region->num_alloc_segments&&
-       region->freed_segment_index[segment_index] == -1;
+  // go through all segments
+  for (int segment_index = 0; segment_index < region->num_alloc_segments &&
+                              region->freed_segment_index[segment_index] == -1;
        segment_index++) {
     segment = &region->segment[segment_index];
 
-
-    //TODO look more into this
+    // TODO look more into this
     // add to freed_segment_index array segments which have been freed by tx
     if (segment->to_delete != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
@@ -509,22 +515,17 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
     if (segment->tx_id_of_creator != INVALID_TX) {
       segment->tx_id_of_creator = INVALID_TX;
     }
-    // commit algorithm for words (copy written word copy into read-only copy) and begin reset
-    for (int i = 0; i < (int)segment->num_writen_words; i++) {
-      word_index = segment->index_modified_words[i];
-      if (segment->is_written_in_epoch[word_index] == true) {
+    // commit algorithm for words (copy written word copy into read-only copy)
+    // and begin reset
+    for (size_t i = 0; i < segment->n_words; i++) {
+      if (segment->is_written_in_epoch[i] == true) {
         // swap valid copy (in case it has been written)
-        segment->cp_is_ro[word_index] =
-            (segment->cp_is_ro[word_index] == 0 ? 1 : 0);
-        
-        //reset
-        segment->is_written_in_epoch[word_index] = false;
+        segment->cp_is_ro[i] = (segment->cp_is_ro[i] == 0 ? 1 : 0);
 
-      } 
-      segment->access_set[word_index] = INVALID_TX;
+        // reset
+        segment->is_written_in_epoch[i] = false;
+      }
+      segment->access_set[i] = INVALID_TX;
     }
-    // reset flags
-    memset(segment->index_modified_words, -1, segment->num_writen_words * sizeof(int));
-    segment->num_writen_words = 0;
   }
 }
