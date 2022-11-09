@@ -247,26 +247,16 @@ void add_to_access_set(int word_index, segment_t* seg, tx_t tx) {
   }
 }
 
-void read_correct_copy(int word_index, void *target, segment_t *segment,
+void read_correct_copy(int word_index, void *target, segment_t *seg,
                        int copy) {
-  if (copy == 0) {
-    memcpy(target, segment->cp0 + (word_index * segment->align),
-           segment->align);
-  } else {
-    memcpy(target, segment->cp1 + (word_index * segment->align),
-           segment->align);
-  }
+  void* start_words_addr = copy == 0 ? seg->cp0 : seg->cp1;
+  memcpy(target, start_words_addr + (word_index * seg->align),seg->align);
 }
 
 void write_to_correct_copy(int word_index, const void* src, segment_t* seg, int copy, tx_t tx){
   seg->is_written_in_epoch[word_index] = true; //set is_written flag to true; 
-  if (copy == 0) {
-        memcpy(seg->cp1 + (word_index * seg->align), src,
-               seg->align);
-      } else {
-        memcpy(seg->cp0 + (word_index * seg->align), src,
-               seg->align);
-      }
+  void* start_words_addr = copy == 0 ? seg->cp1 : seg->cp0;
+  memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
   //if word has not been written in before, update supporting datastructures
   if (seg->access_set[word_index] == INVALID_TX) {
       add_to_access_set(word_index, seg, tx);   
@@ -321,15 +311,15 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
       if (segment->access_set[word_index] == INVALID_TX ) {
         add_to_access_set(word_index, segment, tx);   
       }
+      lock_release(&segment->word_locks[word_index]); //allow parallel reads on same word
       read_correct_copy(word_index, target, segment, ro_copy);
-      lock_release(&segment->word_locks[word_index]);
       return success_alloc;
     } 
 
     // if word written in current epoch by "this" transcation then can read, else abort
     if (segment->is_written_in_epoch[word_index] == true && segment->access_set[word_index] == tx) {
+        lock_release(&segment->word_locks[word_index]); //allow parallel reads on same word
         read_correct_copy(word_index, target, segment, write_copy);
-        lock_release(&segment->word_locks[word_index]);
         return success_alloc;
     } else {
       lock_release(&segment->word_locks[word_index]);
