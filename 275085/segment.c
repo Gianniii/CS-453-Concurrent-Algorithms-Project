@@ -8,22 +8,21 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   atomic_store(&segment->to_delete, INVALID_TX);
   atomic_store(&segment->num_writen_words, 0);
 
-  // alloc words in segment
+  
+  segment->cp_is_ro = calloc(segment->n_words, sizeof(int));
+  if (!segment->cp_is_ro) {
+    return false;
+  }
+
   segment->cp0 = calloc(segment->n_words, align);
   if (!segment->cp0) {
+    free(segment->cp_is_ro);
     return false;
   }
   segment->cp1 = calloc(segment->n_words, align);
   if (!segment->cp1) {
+    free(segment->cp_is_ro);
     free(segment->cp0);
-    return false;
-  }
-  // init supporting data structure for words (to 0)
-  segment->cp_is_ro = calloc(segment->n_words, sizeof(int));
-  if (!segment->cp_is_ro) {
-    free(segment->cp0);
-    free(segment->cp1);
-
     return false;
   }
 
@@ -35,7 +34,8 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
     free(segment->cp_is_ro);
     return false;
   }
-  for (int i = 0; i < (int)segment->n_words; i++) {
+
+  for (size_t i = 0; i < segment->n_words; i++) {
     segment->access_set[i] = INVALID_TX;
   }
   //memset(segment->access_set, INVALID_TX, ((int)segment->n_words)*sizeof(tx_t));

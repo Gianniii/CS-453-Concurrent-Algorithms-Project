@@ -239,8 +239,16 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 }
 
 // UTILS ===================================================================================
+void add_to_access_set(int word_index, segment_t* seg, tx_t tx) {
+  if(seg->access_set[word_index] == INVALID_TX) {
+    int next_free_idx = atomic_fetch_add(&seg->num_writen_words, 1);
+    seg->index_modified_words[next_free_idx] = word_index;
+    seg->access_set[word_index] = tx;
+  }
+}
+
 void read_correct_copy(int word_index, void *target, segment_t *segment,
-                       int copy, tx_t tx, bool is_ro) {
+                       int copy) {
   if (copy == 0) {
     memcpy(target, segment->cp0 + (word_index * segment->align),
            segment->align);
@@ -248,14 +256,6 @@ void read_correct_copy(int word_index, void *target, segment_t *segment,
     memcpy(target, segment->cp1 + (word_index * segment->align),
            segment->align);
   }
-
-  //if first access and not read only transaction
-  if (segment->access_set[word_index] == INVALID_TX && !is_ro) {
-      int next_free_idx = atomic_fetch_add(&segment->num_writen_words, 1);
-      segment->index_modified_words[next_free_idx] = word_index;
-
-      segment->access_set[word_index] = tx;
-    }
 }
 
 void write_to_correct_copy(int word_index, const void* src, segment_t* seg, int copy, tx_t tx){
@@ -269,11 +269,8 @@ void write_to_correct_copy(int word_index, const void* src, segment_t* seg, int 
       }
   //if word has not been written in before, update supporting datastructures
   if (seg->access_set[word_index] == INVALID_TX) {
-      //TODO use stack for this or iterate over access_set since it may be redundant info...
-      int next_free_idx = atomic_fetch_add(&seg->num_writen_words, 1);
-      seg->index_modified_words[next_free_idx] = word_index;
-      seg->access_set[word_index] = tx;
-    }
+      add_to_access_set(word_index, seg, tx);   
+  }
 }
 
 bool allocate_more_segments(region_t* region) {
@@ -314,20 +311,24 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
   int ro_copy = segment->cp_is_ro[word_index];
   int write_copy = (ro_copy == 0) ? 1 : 0;
   if (is_ro == true) {
-    read_correct_copy(word_index, target, segment, ro_copy, tx, is_ro);
+    read_correct_copy(word_index, target, segment, ro_copy);
     return success_alloc;
   } else { //r_w transacation
     lock_acquire(&segment->word_locks[word_index]);
     //if word not written, can read the r_o copy
     if(segment->is_written_in_epoch[word_index] == false) {
-      read_correct_copy(word_index, target, segment, ro_copy, tx, is_ro);
+      //if first access and not read only transaction
+      if (segment->access_set[word_index] == INVALID_TX ) {
+        add_to_access_set(word_index, segment, tx);   
+      }
+      read_correct_copy(word_index, target, segment, ro_copy);
       lock_release(&segment->word_locks[word_index]);
       return success_alloc;
     } 
 
     // if word written in current epoch by "this" transcation then can read, else abort
     if (segment->is_written_in_epoch[word_index] == true && segment->access_set[word_index] == tx) {
-        read_correct_copy(word_index, target, segment, write_copy,tx, is_ro);
+        read_correct_copy(word_index, target, segment, write_copy);
         lock_release(&segment->word_locks[word_index]);
         return success_alloc;
     } else {
