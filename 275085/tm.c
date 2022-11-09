@@ -185,40 +185,14 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   int num_words_to_read;
   alloc_t result;
   int offset;
-  bool is_ro;
-
-  // get transaction type
-  is_ro = region->batcher.is_ro[tx];
-
-  /**SANITY CHECKS**/
-
-  // check size, must be multiple of the shared memory region’s alignment,
-  // otherwise the behavior is undefined.
-  if (size <= 0 || size % region->align != 0) {
-    abort_tx(region, tx);
-  }
+  
+  bool is_ro = region->batcher.is_ro[tx];
 
   // retrieve segment and word number
   word_index = extract_word_offset_from_virt_addr(source);
   segment_index = extract_seg_id_from_virt_addr(source);
-
-  // check that source and target addresses are a positive multiple of the
-  // shared memory region’s alignment, otherwise the behavior is undefined.
-  if (word_index % region->align != 0 ||
-      (uintptr_t)source % region->align != 0 ||
-      segment_index > region->num_existing_segments) {
-    abort_tx(region, tx);
-  }
-
   // find true index (divide by word size)
   word_index = word_index / region->segment[segment_index].align;
-
-  // check address correctness
-  if (segment_index < 0 || word_index < 0) {
-    abort_tx(region, tx);
-  }
-
-  /**READ OPERATION**/
 
   // calculate number of words to be read in segment
   num_words_to_read = size / region->align;
