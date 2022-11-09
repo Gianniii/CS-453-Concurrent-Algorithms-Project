@@ -183,9 +183,8 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   //get necessary data
   bool is_ro = region->batcher.is_ro[tx];
   int n_words = size / region->align;
-  int word_offset = extract_word_offset_from_virt_addr(source);
   int segment_index = extract_seg_id_from_virt_addr(source);
-  int word_index = word_offset / region->segment[segment_index].align;
+  int word_index = extract_word_index_from_virt_addr(source, region->segment[segment_index].align);
   segment_t* segment = &region->segment[segment_index];
 
   // Read words, if fail to read a word then abort
@@ -197,7 +196,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
       return false; 
     }
     curr_word_index++;
-    word_offset++;
+    curr_word_offset++;
   }
   return true;
 }
@@ -305,28 +304,21 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
 bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
-  // retrieve segment and word number
-  int word_index = extract_word_offset_from_virt_addr(target); //TODO figure out if this is addr or idx
   int segment_index = extract_seg_id_from_virt_addr(target);
-
-  // calculate correct index (before it was * word_size)
-  word_index = word_index/ region->segment[segment_index].align;
-  // calculate number of words to be read in segment
-  int num_words_to_write = size / region->align;
-
-  // get segment
+  // retrieve segment and word number
+  int word_index = extract_word_index_from_virt_addr(target, region->segment[segment_index].align); //TODO figure out if this is addr or idx
   segment_t* segment = &region->segment[segment_index];
 
-  // loop thorugh all word indexes (starting from the passed one)
-  for (int curr_word_index = word_index;
-       curr_word_index < word_index + num_words_to_write; curr_word_index++) {
-    int offset = (curr_word_index - word_index) * segment->align;
-
-    alloc_t result = write_word(curr_word_index, source + (offset), segment, tx);
-    if (result == abort_alloc) {
+  int n_words = size / region->align;
+  int curr_word_offset = 0;
+  int curr_word_index = word_index;
+  while(curr_word_index < word_index + n_words) {
+    if(write_word(curr_word_index, source + curr_word_offset, segment, tx) == abort_alloc){;
       abort_tx(region, tx);
-      return false; // abort_tx
+      return false; 
     }
+    curr_word_index++;
+    curr_word_offset++;
   }
   return true;
 }
@@ -424,22 +416,10 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
  * @return Whether the whole transaction can continue
  **/
 bool tm_free(shared_t shared, tx_t tx, void *target) {
-  int segment_index;
-  int word_index;
   unsigned long int cmp_val = INVALID_TX;
   region_t *region = (region_t *)shared;
 
-  // retrieve segment and word number
-  word_index = extract_word_offset_from_virt_addr(target);
-  segment_index = extract_seg_id_from_virt_addr(target);
-
-  // check address correctness (can't free 1st segment or an address which is
-  // not pointing to the 1st word)
-  if (segment_index == 0 || word_index != 0) {
-    abort_tx(region, tx);
-    return false; // abort_tx
-  }
-
+  int segment_index = extract_seg_id_from_virt_addr(target);
   // free (set to tx to_delete) segment from array of segments
   atomic_compare_exchange_strong(&region->segment[segment_index].to_delete,
                                  &cmp_val,
@@ -467,7 +447,7 @@ void abort_tx(region_t *region, tx_t tx) {
   int word_index;
 
   // store current max segment index
-  lock_acquire(&(region->segment_lock));
+  lock_acquire(&(region->segment_lock)); //TODO use atomic variable!!!
   max_segment_index = region->num_existing_segments;
   lock_release(&(region->segment_lock));
 
@@ -529,7 +509,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
     segment = &region->segment[segment_index];
 
 
-    //NO IDEA WHATS HAPPENING HERE!!!
+    //TODO look more into this
     // add to freed_segment_index array segments which have been freed by tx
     if (segment->to_delete != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
