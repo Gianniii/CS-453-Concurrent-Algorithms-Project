@@ -157,13 +157,9 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
   return id;
 }
 
-/** [thread-safe] End the given transaction.
- * @param shared Shared memory region associated with the transaction
- * @param tx     Transaction to end
- * @return Whether the whole transaction committed
- **/
+
 bool tm_end(shared_t shared, tx_t tx) {
-  return leave_batcher((region_t *)shared, tx);
+  return leave_batcher((region_t *)shared, tx); //will never need to return false because we we notify when abort
 }
 
 /** [thread-safe] Read operation in the given transaction, source in the shared
@@ -189,13 +185,13 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // Read words, if fail to read a word then abort
   int curr_word_offset = 0;
-  int curr_word_index = word_index;
-  while(curr_word_index < word_index + n_words) {
-    if(read_word(curr_word_index, target + (curr_word_offset *segment->align), segment, is_ro, tx) == abort_alloc){;
+  int read_idx = word_index;
+  while(read_idx < word_index + n_words) {
+    if(read_word(read_idx, target + (curr_word_offset *segment->align), segment, is_ro, tx) == abort_alloc){;
       abort_tx(region, tx);
       return false; 
     }
-    curr_word_index++;
+    read_idx++;
     curr_word_offset++;
   }
   return true;
@@ -305,19 +301,18 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
   int segment_index = extract_seg_id_from_virt_addr(target);
-  // retrieve segment and word number
-  int word_index = extract_word_index_from_virt_addr(target, region->segment[segment_index].align); //TODO figure out if this is addr or idx
   segment_t* segment = &region->segment[segment_index];
-
+  int word_index = extract_word_index_from_virt_addr(target, region->segment[segment_index].align);
   int n_words = size / region->align;
   int curr_word_offset = 0;
-  int curr_word_index = word_index;
-  while(curr_word_index < word_index + n_words) {
-    if(write_word(curr_word_index, source + curr_word_offset, segment, tx) == abort_alloc){;
+  int write_idx = word_index;
+  
+  while(write_idx < word_index + n_words) {
+    if(write_word(write_idx, source + curr_word_offset, segment, tx) == abort_alloc){;
       abort_tx(region, tx);
       return false; 
     }
-    curr_word_index++;
+    write_idx++;
     curr_word_offset++;
   }
   return true;
@@ -370,11 +365,6 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
  **/
 alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   region_t *region = (region_t *)shared;
-  // check correct alignment of size
-  if (size <= 0 || size % region->align != 0) {
-    abort_tx(region, tx);
-    return abort_alloc; // abort_tx
-  }
 
   // check if there is a shared index for segment
   //printf("%d", region->num_existing_segments);
