@@ -11,11 +11,21 @@
 #include <string.h>
 
 // Segment constants TODO CHANGE ALL
-#define SEGMENT_SHIFT 24 // TODO
-#define INIT_FREED_SEG_SIZE 0x10000
-#define INIT_SEG_SIZE 10
-#define INVALID_TX UINT_MAX
+#define SEGMENT_SHIFT 24            // TODO
+#define INIT_FREED_SEG_SIZE 0x10000 // TODO RENAME
+#define INIT_SEG_SIZE 10            // TODO CHANGE
+#define INVALID_TX UINT_MAX         // TODO CHANGE ME
 
+/**typedef struct {
+  void *word_copy1;
+  void *word_copy2;
+  int *cp_is_ro;
+
+} word_t;*/
+// or contro_t // control structure for each word!!!! // idea wouldnt need
+// to use several array(cp0, cp1, cp_is_ro,
+// access_set, is_written_in_epoch, word_locks) but one array of
+// words[word_index]
 /** segment structure (multiple per shared memory).
  * @param to_delete If set to some tx, the segment has to be deleted when
  *the last transaction exit the batcher, rollback set to 0 if the tx
@@ -31,10 +41,10 @@ typedef struct {
                     // write) will own it for the epoch)
   bool *is_written_in_epoch; // Like in project descrition : Array of boolean to
                              // flag if the word has been written
-  struct lock_t *word_locks;
-  int align;               // size of a word
-  tx_t tx_id_of_creator;   // in tm_alloc  TODO CHANGE ME
-  _Atomic(tx_t) to_delete; // in tm_free   TODO CHANGE ME
+  struct lock_t *word_locks; // used because to lazy to use atomic variables
+  int align;                 // size of a word
+  tx_t tx_id_of_creator;     // in tm_alloc  TODO CHANGE ME
+  _Atomic(tx_t) deregistered; // in tm_free
   // stack_t modified_word_indexes       //Potential optimization to avoid
   // iterating over all words and checking if they have been written in epoch
 } segment_t;

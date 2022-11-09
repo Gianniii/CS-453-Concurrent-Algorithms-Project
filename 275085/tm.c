@@ -423,14 +423,14 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   region_t *region = (region_t *)shared;
 
   int segment_index = extract_seg_id_from_virt_addr(target);
-  // free (set to tx to_delete) segment from array of segments
-  atomic_compare_exchange_strong(&region->segment[segment_index].to_delete,
+  // free (set to tx deregistered) segment from array of segments
+  atomic_compare_exchange_strong(&region->segment[segment_index].deregistered,
                                  &cmp_val,
                                  tx); // 0 should be a pointer to a value
 
   // abort_tx concurrent transactions (or sequentials) which called free on
   // segment after some other transaction
-  if (region->segment[segment_index].to_delete != tx) {
+  if (region->segment[segment_index].deregistered != tx) {
     abort_tx(region, tx);
     return false; // abort_tx
   }
@@ -463,7 +463,7 @@ void abort_tx(region_t *region, tx_t tx) {
     // else (check code at the bottom))
     tx_tmp = tx;
     atomic_compare_exchange_strong(
-        &segment->to_delete, &tx,
+        &segment->deregistered, &tx,
         invalid_value); // tx should be a pointer to a value
     tx = tx_tmp;
 
@@ -507,7 +507,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
 
     // TODO look more into this
     // add to freed_segment_index array segments which have been freed by tx
-    if (segment->to_delete != INVALID_TX) {
+    if (segment->deregistered != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
       continue;
     }
