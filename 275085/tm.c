@@ -199,7 +199,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   }
 
   // retrieve segment and word number
-  word_index = extract_word_num_from_virt_addr(source);
+  word_index = extract_word_offset_from_virt_addr(source);
   segment_index = extract_seg_id_from_virt_addr(source);
 
   // check that source and target addresses are a positive multiple of the
@@ -341,56 +341,24 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
 bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
-  segment_t *segment;
-  int segment_index;
-  int word_index;
-  int num_words_to_write;
-  alloc_t result;
-  int offset;
-
-  /**SANITY CHECKS**/
-  // check size, must be multiple of the shared memory region’s alignment,
-  // otherwise the behavior is undefined.
-  if (size <= 0 || size % region->align != 0) {
-    abort_tx(region, tx);
-    return false; // abort_tx
-  }
-
   // retrieve segment and word number
-  word_index = extract_word_num_from_virt_addr(target); //TODO figure out if this is addr or idx
-  segment_index = extract_seg_id_from_virt_addr(target);
-
-  // check that source and target addresses are a positive multiple of the
-  // shared memory region’s alignment, otherwise the behavior is undefined.
-  if (word_index % region->align != 0 ||
-      (uintptr_t)target % region->align != 0) {
-    abort_tx(region, tx);
-    return false; // abort_tx
-  }
+  int word_index = extract_word_offset_from_virt_addr(target); //TODO figure out if this is addr or idx
+  int segment_index = extract_seg_id_from_virt_addr(target);
 
   // calculate correct index (before it was * word_size)
   word_index = word_index/ region->segment[segment_index].align;
-
-  // check address correctness
-  if (segment_index < 0 || word_index < 0) {
-    abort_tx(region, tx);
-    return false; // abort_tx
-  }
-
-  /**WRITE OPERATION**/
-
   // calculate number of words to be read in segment
-  num_words_to_write = size / region->align;
+  int num_words_to_write = size / region->align;
 
   // get segment
-  segment = &region->segment[segment_index];
+  segment_t* segment = &region->segment[segment_index];
 
   // loop thorugh all word indexes (starting from the passed one)
   for (int curr_word_index = word_index;
        curr_word_index < word_index + num_words_to_write; curr_word_index++) {
-    offset = (curr_word_index - word_index) * segment->align;
+    int offset = (curr_word_index - word_index) * segment->align;
 
-    result = write_word(curr_word_index, source + (offset), segment, tx);
+    alloc_t result = write_word(curr_word_index, source + (offset), segment, tx);
     if (result == abort_alloc) {
       abort_tx(region, tx);
       return false; // abort_tx
@@ -498,7 +466,7 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   region_t *region = (region_t *)shared;
 
   // retrieve segment and word number
-  word_index = extract_word_num_from_virt_addr(target);
+  word_index = extract_word_offset_from_virt_addr(target);
   segment_index = extract_seg_id_from_virt_addr(target);
 
   // check address correctness (can't free 1st segment or an address which is

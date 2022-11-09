@@ -92,11 +92,11 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
 
 //create get virtual address from a segment id
 void *get_virt_addr(int seg_id) {
-  // address is (NUM_SEGMENT + 1) << 24 + offset word
+  // address is (NUM_SEGMENT + 1) << 24 + word offset
   return (void *)((intptr_t)((++seg_id) << SEGMENT_SHIFT));
 }
 
-int extract_word_num_from_virt_addr(void const * addr) {
+int extract_word_offset_from_virt_addr(void const * addr) {
   intptr_t tmp = (intptr_t)addr >> SEGMENT_SHIFT;
   intptr_t shifted_segment_id = tmp << SEGMENT_SHIFT;
   return (intptr_t)addr - shifted_segment_id;
