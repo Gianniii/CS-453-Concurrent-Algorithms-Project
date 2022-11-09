@@ -188,15 +188,16 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   int word_index = word_offset / region->segment[segment_index].align;
   segment_t* segment = &region->segment[segment_index];
 
-  // Read num_words
-  int offset = 0;
-  for (int curr_word_index = word_index;
-       curr_word_index < word_index + n_words; curr_word_index++) {
-    offset = (curr_word_index - word_index) * segment->align;
-    if(read_word(curr_word_index, target + (offset), segment, is_ro, tx) == abort_alloc){;
+  // Read words, if fail to read a word then abort
+  int curr_word_offset = 0;
+  int curr_word_index = word_index;
+  while(curr_word_index < word_index + n_words) {
+    if(read_word(curr_word_index, target + (curr_word_offset *segment->align), segment, is_ro, tx) == abort_alloc){;
       abort_tx(region, tx);
-      return false; // abort_tx
+      return false; 
     }
+    curr_word_index++;
+    word_offset++;
   }
   return true;
 }
