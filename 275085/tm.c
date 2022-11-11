@@ -28,6 +28,8 @@
 #include "stack.h"
 #include "tm.h"
 
+#define NOT_FREE -1
+
 /** Create (i.e. allocate + init) a new shared memory region, with one first
  *non-free-able allocated segment of the requested size and alignment.
  * @param size  Size of the first shared segment of memory to allocate (in
@@ -66,7 +68,7 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  memset(region->freed_segment_index, -1, MAX_NUM_SEGMENTS * sizeof(int));
+  memset(region->freed_segment_index, NOT_FREE, MAX_NUM_SEGMENTS * sizeof(int));
 
   // init lock array of freed segments
   if (!lock_init(&(region->segment_lock))) {
@@ -388,7 +390,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   int index = -1;
   // check if can reuse one of the already allocated segments
   while (index == -1 && i < region->num_existing_segments) {
-    if (region->freed_segment_index[i] != -1) {
+    if (region->freed_segment_index[i] != NOT_FREE) {
       index = i;
     }
     i++;
@@ -405,7 +407,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
     return nomem_alloc;
   }
   // no longer free index
-  region->freed_segment_index[index] = -1;
+  region->freed_segment_index[index] = NOT_FREE;
 
   // set target to virtual address of the segment
   *target = get_virt_addr(index);
@@ -444,27 +446,25 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
  * @param tx Current transaction
  **/
 void abort_tx(region_t *region, tx_t tx) {
-  unsigned long int invalid_value = INVALID_TX;
 
+  //Iterate over all non free'd segments
   int max_segment_index = region->num_existing_segments;
   segment_t *segment;
-  // for all segments
   for (int segment_index = 0; segment_index < max_segment_index &&
-                              region->freed_segment_index[segment_index] == -1;
+                              region->freed_segment_index[segment_index] == NOT_FREE;
        segment_index++) {
     segment = &region->segment[segment_index];
 
     // unset segments on which tx has called tm_free previously (tx_tmp is
     // needed because of the atomic_compare_exchange, which perform if then
     // else (check code at the bottom))
-    tx_t tx_tmp = tx;
-    atomic_compare_exchange_strong(
-        &segment->deregistered, &tx,
-        invalid_value); // tx should be a pointer to a value
-    tx = tx_tmp;
+    lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
+      if(segment->deregistered == tx) { //re register the segment
+        segment->deregistered = INVALID_TX;
+      } 
+    lock_release(&(region->segment_lock));
 
-    // add used segment indexes for tx to freed_segment_index array (for
-    // tm_alloc)
+    //free the segment that was creating for "this" aborted transaction
     if (segment->tx_id_of_creator == tx) {
       region->freed_segment_index[segment_index] = segment_index;
       segment->tx_id_of_creator = INVALID_TX;
@@ -497,11 +497,11 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   // go through all segments
   for (int segment_index = 0; segment_index < region->num_alloc_segments &&
-                              region->freed_segment_index[segment_index] == -1;
+                              region->freed_segment_index[segment_index] == NOT_FREE;
        segment_index++) {
     segment = &region->segment[segment_index];
-    // TODO look more into this
-    // add to freed_segment_index array segments which have been freed by tx
+    
+    // free segments that were set to be freed by a transaction on this epoch
     if (segment->deregistered != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
       continue;

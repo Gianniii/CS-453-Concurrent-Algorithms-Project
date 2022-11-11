@@ -44,7 +44,7 @@ typedef struct {
   struct lock_t *word_locks; // used because to lazy to use atomic variables
   int align;                 // size of a word
   tx_t tx_id_of_creator;     // in tm_alloc  TODO CHANGE ME
-  _Atomic(tx_t) deregistered; // to be freed in tm_free
+  _Atomic(tx_t) deregistered; // to be freed in tm_free(equals INVALID_TX if not set else it equals the tx that deregistered it)
   // stack_t modified_word_indexes       //Potential optimization to avoid
   // iterating over all words and checking if they have been written in epoch
 } segment_t;
