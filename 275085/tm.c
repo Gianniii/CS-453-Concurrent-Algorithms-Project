@@ -176,9 +176,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   while (read_idx < word_index + n_words) {
     if (read_word(read_idx, target + (curr_word_offset * segment->align),
                   segment, is_ro, tx) == abort_alloc) {
-      ;
-      abort_tx(region, tx);
-      return false;
+      return(abort_transaction_tx(region, tx));
     }
     read_idx++;
     curr_word_offset++;
@@ -309,8 +307,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   while (write_idx < word_index + n_words) {
     if (write_word(write_idx, source + curr_word_offset, segment, tx) ==
         abort_alloc) {
-      abort_tx(region, tx);
-      return false;
+      return(abort_transaction_tx(region, tx));
     }
     write_idx++;
     curr_word_offset++;
@@ -417,19 +414,15 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
         lock_release(&(region->segment_lock));
         //if has already been deregistered then abort the transacation
         if (region->segment[segment_index].deregistered != tx) {
-          abort_tx(region, tx);
-          return false; // abort_tx
+          return(abort_transaction_tx(region, tx));
         }
       }
   lock_release(&(region->segment_lock));
   return true;
 }
 
-/** [thread-safe] abort_tx operations for a given transaction
- * @param region Shared memory region
- * @param tx Current transaction
- **/
-void abort_tx(region_t *region, tx_t tx) {
+//always returns false
+bool abort_transaction_tx(region_t *region, tx_t tx) {
 
   //Iterate over all non free'd segments
   int max_segment_index = region->num_existing_segments;
@@ -437,8 +430,6 @@ void abort_tx(region_t *region, tx_t tx) {
   for (int segment_index = 0; segment_index < max_segment_index;
        segment_index++) {
     if( region->freed_segment_index[segment_index] == NOT_FREE) {
-
-    
       segment = &region->segment[segment_index];
 
       // unset segments on which tx has called tm_free previously (tx_tmp is
@@ -470,8 +461,8 @@ void abort_tx(region_t *region, tx_t tx) {
       }
     }
   }
-  // also aborting tx should leave the batcher
   leave_batcher(region, tx);
+  return false;
 }
 
 /** [thread-safe] commit operations for a given transaction
@@ -479,7 +470,7 @@ void abort_tx(region_t *region, tx_t tx) {
  * @param tx Current transaction
  **/
 //Commit is only called once last transacation of epoch leaves the batcher
-void commit_tx(region_t *region, tx_t unused(tx)) {
+void commit_transacations_in_epoch(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   // go through all valid segments(not freed)
   for (int segment_index = 0; segment_index < region->num_alloc_segments;

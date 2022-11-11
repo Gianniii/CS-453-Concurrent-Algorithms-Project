@@ -44,7 +44,7 @@ bool leave_batcher(region_t *region, tx_t tx) {
 
   // Last transaction is leaving
   if (batcher->n_remaining == 0) {
-    commit_tx(region, tx);
+    commit_transacations_in_epoch(region, tx);
     prepare_batcher_for_next_epoch(batcher);
     pthread_cond_broadcast(&batcher->cond_var);
   }

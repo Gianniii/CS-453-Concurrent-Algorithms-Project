@@ -21,26 +21,26 @@ typedef struct region_s
 {
   _Atomic(tx_t) current_transaction_id;
   void *start;
-  int num_alloc_segments; 
-  segment_t *segment;     // Array of segments
-                          // allocated segments (used to keep track //maybe could use size of stack for this..
+  int num_alloc_segments;
+  segment_t *segment; // Array of segments
+                      // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
   size_t align;
-  int *freed_segment_index;  // array of freed segment indexes available fo reallocation, (-1 if not available)
+  int *freed_segment_index;         // array of freed segment indexes available fo reallocation, (-1 if not available)
   atomic_int num_existing_segments; // start from 1
   struct lock_t segment_lock;
-  //struct lock_t stack_lock; //for stack
+  // struct lock_t stack_lock; //for stack
   batcher_t batcher;
   size_t seg_size;
-  //stack_t free_seg_indices;
+  // stack_t free_seg_indices;
 } region_t;
 
 // we have a shared memory region between threads, what exactly re segments for? is a 1 segment per batch?
-bool init_batcher(batcher_t *);
-bool enter_batcher(batcher_t *);
-bool leave_batcher(region_t *, tx_t tx);
-void destroy_batcher(batcher_t *);
+bool init_batcher(batcher_t * batcher);
+bool enter_batcher(batcher_t * batcher);
+bool leave_batcher(region_t * region, tx_t tx);
+void destroy_batcher(batcher_t * batcher);
 void prepare_batcher_for_next_epoch(batcher_t *batcher);
 
-void abort_tx(region_t *, tx_t);
-void commit_tx(region_t *, tx_t);
+bool abort_transaction_tx(region_t * region, tx_t tx);
+void commit_transacations_in_epoch(region_t * region, tx_t tx);
