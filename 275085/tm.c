@@ -29,6 +29,7 @@
 #include "tm.h"
 
 #define NOT_FREE -1
+#define FREE -2
 
 //init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
@@ -50,18 +51,18 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  region->freed_segment_index =
+  region->segment_is_free =
       (int *)malloc(MAX_NUM_SEGMENTS * sizeof(int));
-  if (region->freed_segment_index == NULL) {
+  if (region->segment_is_free == NULL) {
     free(region->segment);
     free(region);
     return invalid_shared;
   } else {
-    memset(region->freed_segment_index, NOT_FREE, MAX_NUM_SEGMENTS * sizeof(int));
+    memset(region->segment_is_free, NOT_FREE, MAX_NUM_SEGMENTS * sizeof(int));
   }
  
   if (!lock_init(&(region->segment_lock))) {
-    free(region->freed_segment_index);
+    free(region->segment_is_free);
     free(region->segment);
     free(region);
     return invalid_shared;
@@ -70,7 +71,7 @@ shared_t tm_create(size_t size, size_t align) {
   align = align < sizeof(void *) ? sizeof(void *) : align;
   if (!segment_init(&region->segment[0], -1, size, align)) {
     lock_cleanup(&(region->segment_lock));
-    free(region->freed_segment_index);
+    free(region->segment_is_free);
     free(region->segment);
     free(region);
     return invalid_shared;
@@ -78,7 +79,7 @@ shared_t tm_create(size_t size, size_t align) {
 
   if (!init_batcher(&region->batcher)) {
     lock_cleanup(&(region->segment_lock));
-    free(region->freed_segment_index);
+    free(region->segment_is_free);
     free(region->segment);
     free(region);
     return invalid_shared;
@@ -109,7 +110,7 @@ void tm_destroy(shared_t shared) {
 
   destroy_batcher(&(region->batcher));
   free(region->segment);
-  free(region->freed_segment_index);
+  free(region->segment_is_free);
 
   // locks clean-up
   lock_cleanup(&(region->segment_lock));
@@ -370,7 +371,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   int index = -1;
   // check if can reuse one of the already allocated segments
   while (index == -1 && i < region->num_existing_segments) {
-    if (region->freed_segment_index[i] != NOT_FREE) {
+    if (region->segment_is_free[i] != NOT_FREE) {
       index = i;
     }
     i++;
@@ -387,7 +388,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
     return nomem_alloc;
   }
   // no longer free index
-  region->freed_segment_index[index] = NOT_FREE;
+  region->segment_is_free[index] = NOT_FREE;
 
   // set target to virtual address of the segment
   *target = get_virt_addr(index);
@@ -429,7 +430,7 @@ bool abort_transaction_tx(region_t *region, tx_t tx) {
   segment_t *segment;
   for (int segment_index = 0; segment_index < max_segment_index;
        segment_index++) {
-    if( region->freed_segment_index[segment_index] == NOT_FREE) {
+    if( region->segment_is_free[segment_index] == NOT_FREE) {
       segment = &region->segment[segment_index];
 
       // unset segments on which tx has called tm_free previously (tx_tmp is
@@ -443,7 +444,7 @@ bool abort_transaction_tx(region_t *region, tx_t tx) {
 
       //free the segment that was created for "this" aborted transaction
       if (segment->tx_id_of_creator == tx) {
-        region->freed_segment_index[segment_index] = segment_index;
+        region->segment_is_free[segment_index] = FREE;
       } else {
         //Check words this tx accessed and wrote to and and make those words available again
         for (size_t i = 0; i < segment->n_words;
@@ -475,11 +476,11 @@ void commit_transacations_in_epoch(region_t *region, tx_t unused(tx)) {
   // go through all valid segments(not freed)
   for (int segment_index = 0; segment_index < region->num_alloc_segments;
        segment_index++) {
-    if(region->freed_segment_index[segment_index] == NOT_FREE) {
+    if(region->segment_is_free[segment_index] == NOT_FREE) {
       segment = &region->segment[segment_index];
       // free segments that were set to be freed by a transaction on this epoch
       if (segment->deregistered != INVALID_TX) {
-        region->freed_segment_index[segment_index] = segment_index; 
+        region->segment_is_free[segment_index] = FREE;
       } else {
         //commit the written words of this segment and reset segment vals
         for (size_t i = 0; i < segment->n_words; i++) {
