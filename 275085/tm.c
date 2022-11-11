@@ -98,7 +98,7 @@ shared_t tm_create(size_t size, size_t align) {
   region->num_alloc_segments = INIT_SEG_SIZE;
 
   region->num_existing_segments = 1;
-  atomic_store(&region->current_transaction_id, (tx_t)1);
+  region->current_transaction_id = 1;
 
   return region;
 }
@@ -423,21 +423,22 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
  * @return Whether the whole transaction can continue
  **/
 bool tm_free(shared_t shared, tx_t tx, void *target) {
-  unsigned long int cmp_val = INVALID_TX;
-  region_t *region = (region_t *)shared;
+  region_t *region = (region_t*)shared;
 
   int segment_index = extract_seg_id_from_virt_addr(target);
   // free (set to tx deregistered) segment from array of segments
-  atomic_compare_exchange_strong(&region->segment[segment_index].deregistered,
-                                 &cmp_val,
-                                 tx); // 0 should be a pointer to a value
-
-  // abort_tx concurrent transactions (or sequentials) which called free on
-  // segment after some other transaction
-  if (region->segment[segment_index].deregistered != tx) {
-    abort_tx(region, tx);
-    return false; // abort_tx
-  }
+  lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
+      if(region->segment[segment_index].deregistered == INVALID_TX) { //if segment is not deregisterd then deregister it
+        region->segment[segment_index].deregistered = tx;
+      } else {
+        lock_release(&(region->segment_lock));
+        //if has already been deregistered then abort the transacation
+        if (region->segment[segment_index].deregistered != tx) {
+          abort_tx(region, tx);
+          return false; // abort_tx
+        }
+      }
+  lock_release(&(region->segment_lock));
   return true;
 }
 
@@ -500,7 +501,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
                               region->freed_segment_index[segment_index] == NOT_FREE;
        segment_index++) {
     segment = &region->segment[segment_index];
-    
+
     // free segments that were set to be freed by a transaction on this epoch
     if (segment->deregistered != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
