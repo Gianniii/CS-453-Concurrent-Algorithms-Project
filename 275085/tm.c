@@ -425,7 +425,7 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   region_t *region = (region_t*)shared;
 
   int segment_index = extract_seg_id_from_virt_addr(target);
-  // free (set to tx deregistered) segment from array of segments
+  // set to be deregistered like written in project description
   lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
       if(region->segment[segment_index].deregistered == INVALID_TX) { //if segment is not deregisterd then deregister it
         region->segment[segment_index].deregistered = tx;
@@ -510,7 +510,7 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
       //commit the written words of this segment and reset segment vals
       for (size_t i = 0; i < segment->n_words; i++) {
         if (segment->is_written_in_epoch[i] == true) {
-          segment->cp_is_ro[i] = (segment->cp_is_ro[i] == 0 ? 1 : 0);
+          segment->cp_is_ro[i] = (segment->cp_is_ro[i]+1)%2;
       }
       segment->is_written_in_epoch[i] = false;
       segment->access_set[i] = INVALID_TX;
