@@ -30,60 +30,45 @@
 
 #define NOT_FREE -1
 
-/** Create (i.e. allocate + init) a new shared memory region, with one first
- *non-free-able allocated segment of the requested size and alignment.
- * @param size  Size of the first shared segment of memory to allocate (in
- *bytes), must be a positive multiple of the alignment
- * @param align Alignment (in bytes, must be a power of 2) that the shared
- *memory region must support
- * @return Opaque shared memory region handle, 'invalid_shared' on failure
- **/
+//init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
   // allocate shared memory region
-  region_t *region = (region_t *)malloc(sizeof(region_t));
+  region_t *region = (region_t*)malloc(sizeof(region_t));
   if (!region) {
     return invalid_shared;
   }
-  // initialize batcher for shared memory region
-  if (!init_batcher(&region->batcher)) {
-    free(region);
-    return invalid_shared;
-  }
 
-  // allocate and initialize 1st segment in shared memory region
-  region->segment = (segment_t *)malloc(INIT_SEG_SIZE * sizeof(segment_t));
+  region->start = get_virt_addr(0);
+  region->num_alloc_segments = 64;
+  region->seg_size = size;
+  region->align = align;
+  region->num_existing_segments = 1;
+  region->current_transaction_id = 1;
+  region->segment = (segment_t *)malloc(region->num_alloc_segments * sizeof(segment_t));
   if (!region->segment) {
-    destroy_batcher(&(region->batcher));
     free(region);
     return invalid_shared;
   }
 
-  // allocate freed segment array (to track freed segment indexes)
   region->freed_segment_index =
       (int *)malloc(MAX_NUM_SEGMENTS * sizeof(int));
   if (region->freed_segment_index == NULL) {
-    destroy_batcher(&(region->batcher));
     free(region->segment);
     free(region);
     return invalid_shared;
+  } else {
+    memset(region->freed_segment_index, NOT_FREE, MAX_NUM_SEGMENTS * sizeof(int));
   }
-
-  memset(region->freed_segment_index, NOT_FREE, MAX_NUM_SEGMENTS * sizeof(int));
-
-  // init lock array of freed segments
+ 
   if (!lock_init(&(region->segment_lock))) {
-    destroy_batcher(&(region->batcher));
     free(region->freed_segment_index);
     free(region->segment);
     free(region);
     return invalid_shared;
   }
 
-  // calculate alignment for the shared memory region
   align = align < sizeof(void *) ? sizeof(void *) : align;
-  // initialize first segment
   if (!segment_init(&region->segment[0], -1, size, align)) {
-    destroy_batcher(&(region->batcher));
     lock_cleanup(&(region->segment_lock));
     free(region->freed_segment_index);
     free(region->segment);
@@ -91,14 +76,13 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  region->start = get_virt_addr(0);
-
-  region->seg_size = size;
-  region->align = align;
-  region->num_alloc_segments = INIT_SEG_SIZE;
-
-  region->num_existing_segments = 1;
-  region->current_transaction_id = 1;
+  if (!init_batcher(&region->batcher)) {
+    lock_cleanup(&(region->segment_lock));
+    free(region->freed_segment_index);
+    free(region->segment);
+    free(region);
+    return invalid_shared;
+  }
 
   return region;
 }

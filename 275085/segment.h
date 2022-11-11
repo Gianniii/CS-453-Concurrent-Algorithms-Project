@@ -13,7 +13,6 @@
 // Segment constants TODO CHANGE ALL
 #define SEGMENT_SHIFT 24            // TODO
 #define MAX_NUM_SEGMENTS 0x10000 // TODO RENAME
-#define INIT_SEG_SIZE 64          // TODO CHANGE
 #define INVALID_TX UINT_MAX         // TODO CHANGE ME
 
 /**typedef struct {
