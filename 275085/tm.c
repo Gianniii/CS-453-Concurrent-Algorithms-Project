@@ -500,27 +500,20 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
                               region->freed_segment_index[segment_index] == -1;
        segment_index++) {
     segment = &region->segment[segment_index];
-
     // TODO look more into this
     // add to freed_segment_index array segments which have been freed by tx
     if (segment->deregistered != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
       continue;
     }
-
-    if (segment->tx_id_of_creator != INVALID_TX) {
-      segment->tx_id_of_creator = INVALID_TX;
-    }
+    segment->tx_id_of_creator = INVALID_TX;
     // commit algorithm for words (copy written word copy into read-only copy)
     // and begin reset
     for (size_t i = 0; i < segment->n_words; i++) {
       if (segment->is_written_in_epoch[i] == true) {
-        // swap valid copy (in case it has been written)
         segment->cp_is_ro[i] = (segment->cp_is_ro[i] == 0 ? 1 : 0);
-
-        // reset
-        segment->is_written_in_epoch[i] = false;
       }
+      segment->is_written_in_epoch[i] = false;
       segment->access_set[i] = INVALID_TX;
     }
   }
