@@ -17,21 +17,11 @@ typedef struct batcher_s
   bool *is_ro;             // Array to keep track which transacations are read-only
 } batcher_t;
 
-/* @param seg_size Size of the shared memory region (in bytes)
- * @param align Claimed alignment of the shared memory region (in bytes)
- * @param align_alloc Actual alignment of the memory allocations (in bytes)
- * @param current_segment_index Max index of the current segment (incremented if
- *no freed indexes available)
- * @param freed_segment_index Array of indexes freed and that can be used again
- * @param segment_lock Lock for reallocation of array of segments and array of
- *freed indexes
- * @param curren_transaction_id Max value of transaction id assigned to some tx
- **/
 typedef struct region_s
 {
   _Atomic(tx_t) current_transaction_id;
   void *start;
-  int num_alloc_segments;
+  int num_alloc_segments; 
   segment_t *segment;     // Array of segments
                           // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
@@ -39,7 +29,7 @@ typedef struct region_s
   int *freed_segment_index;  // array of freed segment indexes available fo reallocation, (-1 if not available)
   atomic_int num_existing_segments; // start from 1
   struct lock_t segment_lock;
-  struct lock_t stack_lock; //for stack
+  //struct lock_t stack_lock; //for stack
   batcher_t batcher;
   size_t seg_size;
   //stack_t free_seg_indices;
