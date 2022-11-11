@@ -504,16 +504,17 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
       segment = &region->segment[segment_index];
       // free segments that were set to be freed by a transaction on this epoch
       if (segment->deregistered != INVALID_TX) {
-        region->freed_segment_index[segment_index] = segment_index; // so freed
+        region->freed_segment_index[segment_index] = segment_index; 
       } else {
         //commit the written words of this segment and reset segment vals
         for (size_t i = 0; i < segment->n_words; i++) {
           if (segment->is_written_in_epoch[i] == true) {
             segment->cp_is_ro[i] = (segment->cp_is_ro[i]+1)%2;
         }
+        //set metadata for next epoch
         segment->is_written_in_epoch[i] = false;
         segment->access_set[i] = INVALID_TX;
-        segment->tx_id_of_creator = INVALID_TX;
+        segment->tx_id_of_creator = INVALID_TX; //creator no longer exists
         }
       }
     }
