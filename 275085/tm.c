@@ -498,23 +498,23 @@ void abort_tx(region_t *region, tx_t tx) {
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   // go through all valid segments(not freed)
-  for (int segment_index = 0; segment_index < region->num_alloc_segments &&
-                              region->freed_segment_index[segment_index] == NOT_FREE;
+  for (int segment_index = 0; segment_index < region->num_alloc_segments;
        segment_index++) {
-    segment = &region->segment[segment_index];
-
-    // free segments that were set to be freed by a transaction on this epoch
-    if (segment->deregistered != INVALID_TX) {
-      region->freed_segment_index[segment_index] = segment_index; // so freed
-    } else {
-      //commit the written words of this segment and reset segment vals
-      for (size_t i = 0; i < segment->n_words; i++) {
-        if (segment->is_written_in_epoch[i] == true) {
-          segment->cp_is_ro[i] = (segment->cp_is_ro[i]+1)%2;
-      }
-      segment->is_written_in_epoch[i] = false;
-      segment->access_set[i] = INVALID_TX;
-      segment->tx_id_of_creator = INVALID_TX;
+    if(region->freed_segment_index[segment_index] == NOT_FREE) {
+      segment = &region->segment[segment_index];
+      // free segments that were set to be freed by a transaction on this epoch
+      if (segment->deregistered != INVALID_TX) {
+        region->freed_segment_index[segment_index] = segment_index; // so freed
+      } else {
+        //commit the written words of this segment and reset segment vals
+        for (size_t i = 0; i < segment->n_words; i++) {
+          if (segment->is_written_in_epoch[i] == true) {
+            segment->cp_is_ro[i] = (segment->cp_is_ro[i]+1)%2;
+        }
+        segment->is_written_in_epoch[i] = false;
+        segment->access_set[i] = INVALID_TX;
+        segment->tx_id_of_creator = INVALID_TX;
+        }
       }
     }
   }
