@@ -152,7 +152,7 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
   // get index of transacation
   tx_t id = atomic_fetch_add(&region->current_transaction_id, 1) %
             region->batcher.n_in_epoch;
-  region->batcher.is_ro[id] = is_ro; // this should be atomic or should use lock
+  region->batcher.is_ro[id] = is_ro; //no need for atomic since this is unique to each transcation
   return id;
 }
 
@@ -239,6 +239,7 @@ bool allocate_more_segments(region_t *region) {
   return true;
 }
 
+//Care: Segment must be locked during this operation
 bool add_segment_with_index(region_t *region, int idx) {
   region->num_existing_segments++;
   // might have to allocate more segments to accomodate this extra segment
@@ -443,15 +444,9 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
  **/
 void abort_tx(region_t *region, tx_t tx) {
   unsigned long int invalid_value = INVALID_TX;
-  int max_segment_index;
+
+  size_t max_segment_index = region->num_existing_segments;
   segment_t *segment;
-  tx_t tx_tmp;
-
-  // store current max segment index
-  lock_acquire(&(region->segment_lock)); // TODO use atomic variable!!!
-  max_segment_index = region->num_existing_segments;
-  lock_release(&(region->segment_lock));
-
   // for all segments
   for (int segment_index = 0; segment_index < max_segment_index &&
                               region->freed_segment_index[segment_index] == -1;
@@ -461,7 +456,7 @@ void abort_tx(region_t *region, tx_t tx) {
     // unset segments on which tx has called tm_free previously (tx_tmp is
     // needed because of the atomic_compare_exchange, which perform if then
     // else (check code at the bottom))
-    tx_tmp = tx;
+    tx_t tx_tmp = tx;
     atomic_compare_exchange_strong(
         &segment->deregistered, &tx,
         invalid_value); // tx should be a pointer to a value
@@ -500,7 +495,7 @@ void abort_tx(region_t *region, tx_t tx) {
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   // go through all segments
-  for (int segment_index = 0; segment_index < region->num_alloc_segments &&
+  for (size_t segment_index = 0; segment_index < region->num_alloc_segments &&
                               region->freed_segment_index[segment_index] == -1;
        segment_index++) {
     segment = &region->segment[segment_index];

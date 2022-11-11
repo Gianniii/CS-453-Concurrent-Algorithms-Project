@@ -31,13 +31,13 @@ typedef struct region_s
 {
   _Atomic(tx_t) current_transaction_id;
   void *start;
+  size_t num_alloc_segments;
   segment_t *segment;     // Array of segments
-  int num_alloc_segments; // TODO changethis num_alloc_segments Number of
                           // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
   size_t align;
   int *freed_segment_index;  // array of freed segment indexes available fo reallocation, (-1 if not available)
-  int num_existing_segments; // start from 1
+  atomic_int num_existing_segments; // start from 1
   struct lock_t segment_lock;
   struct lock_t stack_lock; //for stack
   batcher_t batcher;
