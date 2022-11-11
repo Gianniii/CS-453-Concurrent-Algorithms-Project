@@ -31,7 +31,7 @@ typedef struct region_s
 {
   _Atomic(tx_t) current_transaction_id;
   void *start;
-  size_t num_alloc_segments;
+  int num_alloc_segments;
   segment_t *segment;     // Array of segments
                           // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)

@@ -240,11 +240,12 @@ bool allocate_more_segments(region_t *region) {
 }
 
 //Care: Segment must be locked during this operation
-bool add_segment_with_index(region_t *region, int idx) {
+int add_segment(region_t *region) {
+  int idx = region->num_existing_segments;
   region->num_existing_segments++;
   // might have to allocate more segments to accomodate this extra segment
   if (!allocate_more_segments(region)) {
-    return false;
+    return -1;
   }
   // add segment structure to region
   // TODO Make region contains list of segment pointers! so can allocated all
@@ -253,7 +254,7 @@ bool add_segment_with_index(region_t *region, int idx) {
   segment_t segment;
   region->segment[idx] = segment; // copy segment
   // printf("goes here\n");
-  return true;
+  return idx;
 }
 
 //=========================================================================================
@@ -392,9 +393,9 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
     }
     i++;
   }
-  if (index == -1) { // must increase number of existing segments
-    index = region->num_existing_segments;
-    if (!add_segment_with_index(region, index)) {
+  if (index == -1) { // cannot reuse already allocated segment
+    index = add_segment(region);
+    if (index == -1) {
       return nomem_alloc;
     }
   }
@@ -445,7 +446,7 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
 void abort_tx(region_t *region, tx_t tx) {
   unsigned long int invalid_value = INVALID_TX;
 
-  size_t max_segment_index = region->num_existing_segments;
+  int max_segment_index = region->num_existing_segments;
   segment_t *segment;
   // for all segments
   for (int segment_index = 0; segment_index < max_segment_index &&
@@ -495,7 +496,7 @@ void abort_tx(region_t *region, tx_t tx) {
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
   // go through all segments
-  for (size_t segment_index = 0; segment_index < region->num_alloc_segments &&
+  for (int segment_index = 0; segment_index < region->num_alloc_segments &&
                               region->freed_segment_index[segment_index] == -1;
        segment_index++) {
     segment = &region->segment[segment_index];
