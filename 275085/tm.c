@@ -28,8 +28,8 @@
 #include "stack.h"
 #include "tm.h"
 
-#define NOT_FREE -1
-#define FREE -2
+#define NOT_FREE false
+#define FREE true
 
 //init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
@@ -52,13 +52,11 @@ shared_t tm_create(size_t size, size_t align) {
   }
 
   region->segment_is_free =
-      (int *)malloc(MAX_NUM_SEGMENTS * sizeof(int));
+      (bool *)calloc(MAX_NUM_SEGMENTS, sizeof(bool));//auto init all to false
   if (region->segment_is_free == NULL) {
     free(region->segment);
     free(region);
     return invalid_shared;
-  } else {
-    memset(region->segment_is_free, NOT_FREE, MAX_NUM_SEGMENTS * sizeof(int));
   }
  
   if (!lock_init(&(region->segment_lock))) {
