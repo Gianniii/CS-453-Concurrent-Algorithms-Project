@@ -325,7 +325,6 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   while (write_idx < word_index + n_words) {
     if (write_word(write_idx, source + curr_word_offset, segment, tx) ==
         abort_alloc) {
-      ;
       abort_tx(region, tx);
       return false;
     }
@@ -451,38 +450,39 @@ void abort_tx(region_t *region, tx_t tx) {
   //Iterate over all non free'd segments
   int max_segment_index = region->num_existing_segments;
   segment_t *segment;
-  for (int segment_index = 0; segment_index < max_segment_index &&
-                              region->freed_segment_index[segment_index] == NOT_FREE;
+  for (int segment_index = 0; segment_index < max_segment_index;
        segment_index++) {
-    segment = &region->segment[segment_index];
+    if( region->freed_segment_index[segment_index] == NOT_FREE) {
 
-    // unset segments on which tx has called tm_free previously (tx_tmp is
-    // needed because of the atomic_compare_exchange, which perform if then
-    // else (check code at the bottom))
-    lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
-      if(segment->deregistered == tx) { //re register the segment
-        segment->deregistered = INVALID_TX;
-      } 
-    lock_release(&(region->segment_lock));
+    
+      segment = &region->segment[segment_index];
 
-    //free the segment that was creating for "this" aborted transaction
-    if (segment->tx_id_of_creator == tx) {
-      region->freed_segment_index[segment_index] = segment_index;
-      segment->tx_id_of_creator = INVALID_TX;
-      continue;
-    }
+      // unset segments on which tx has called tm_free previously (tx_tmp is
+      // needed because of the atomic_compare_exchange, which perform if then
+      // else (check code at the bottom))
+      lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
+        if(segment->deregistered == tx) { //re-register the segment
+          segment->deregistered = INVALID_TX;
+        } 
+      lock_release(&(region->segment_lock));
 
-    // roolback write operations on each word performed by tx
-    for (size_t i = 0; i < segment->n_words;
-         i++) { // TODO: Can optimize by using stack of modified word_indexes
-                // instead of iterating over all words and checking if they have
-                // been written
-      if (segment->access_set[i] == tx &&
-          segment->is_written_in_epoch[i] == true) {
-        lock_acquire(&segment->word_locks[i]);
-        segment->access_set[i] = INVALID_TX;
-        segment->is_written_in_epoch[i] = false;
-        lock_release(&segment->word_locks[i]);
+      //free the segment that was created for "this" aborted transaction
+      if (segment->tx_id_of_creator == tx) {
+        region->freed_segment_index[segment_index] = segment_index;
+      } else {
+        //Check words this tx accessed and wrote to and and make those words available again
+        for (size_t i = 0; i < segment->n_words;
+            i++) { // TODO: Can optimize by using stack of modified word_indexes
+                    // instead of iterating over all words and checking if they have
+                    // been written
+          if (segment->access_set[i] == tx &&
+              segment->is_written_in_epoch[i] == true) {
+            lock_acquire(&segment->word_locks[i]);
+            segment->access_set[i] = INVALID_TX;
+            segment->is_written_in_epoch[i] = false;
+            lock_release(&segment->word_locks[i]);
+          }
+        }
       }
     }
   }
@@ -494,9 +494,10 @@ void abort_tx(region_t *region, tx_t tx) {
  * @param region Shared memory region
  * @param tx Current transaction
  **/
+//Commit is only called once last transacation of epoch leaves the batcher
 void commit_tx(region_t *region, tx_t unused(tx)) {
   segment_t *segment;
-  // go through all segments
+  // go through all valid segments(not freed)
   for (int segment_index = 0; segment_index < region->num_alloc_segments &&
                               region->freed_segment_index[segment_index] == NOT_FREE;
        segment_index++) {
@@ -505,17 +506,16 @@ void commit_tx(region_t *region, tx_t unused(tx)) {
     // free segments that were set to be freed by a transaction on this epoch
     if (segment->deregistered != INVALID_TX) {
       region->freed_segment_index[segment_index] = segment_index; // so freed
-      continue;
-    }
-    segment->tx_id_of_creator = INVALID_TX;
-    // commit algorithm for words (copy written word copy into read-only copy)
-    // and begin reset
-    for (size_t i = 0; i < segment->n_words; i++) {
-      if (segment->is_written_in_epoch[i] == true) {
-        segment->cp_is_ro[i] = (segment->cp_is_ro[i] == 0 ? 1 : 0);
+    } else {
+      //commit the written words of this segment and reset segment vals
+      for (size_t i = 0; i < segment->n_words; i++) {
+        if (segment->is_written_in_epoch[i] == true) {
+          segment->cp_is_ro[i] = (segment->cp_is_ro[i] == 0 ? 1 : 0);
       }
       segment->is_written_in_epoch[i] = false;
       segment->access_set[i] = INVALID_TX;
+      segment->tx_id_of_creator = INVALID_TX;
+      }
     }
   }
 }
