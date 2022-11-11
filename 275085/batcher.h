@@ -17,7 +17,7 @@ typedef struct batcher_s
   bool *is_ro;             // Array to keep track which transacations are read-only
 } batcher_t;
 
-/* @param first_seg_size Size of the shared memory region (in bytes)
+/* @param seg_size Size of the shared memory region (in bytes)
  * @param align Claimed alignment of the shared memory region (in bytes)
  * @param align_alloc Actual alignment of the memory allocations (in bytes)
  * @param current_segment_index Max index of the current segment (incremented if
@@ -41,8 +41,8 @@ typedef struct region_s
   struct lock_t segment_lock;
   struct lock_t stack_lock; //for stack
   batcher_t batcher;
-  size_t first_seg_size;
-  stack_t free_seg_indices;
+  size_t seg_size;
+  //stack_t free_seg_indices;
 } region_t;
 
 // we have a shared memory region between threads, what exactly re segments for? is a 1 segment per batch?

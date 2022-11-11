@@ -58,7 +58,7 @@ shared_t tm_create(size_t size, size_t align) {
 
   // allocate freed segment array (to track freed segment indexes)
   region->freed_segment_index =
-      (int *)malloc(INIT_FREED_SEG_SIZE * sizeof(int));
+      (int *)malloc(MAX_NUM_SEGMENTS * sizeof(int));
   if (region->freed_segment_index == NULL) {
     destroy_batcher(&(region->batcher));
     free(region->segment);
@@ -66,7 +66,7 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  memset(region->freed_segment_index, -1, INIT_FREED_SEG_SIZE * sizeof(int));
+  memset(region->freed_segment_index, -1, MAX_NUM_SEGMENTS * sizeof(int));
 
   // init lock array of freed segments
   if (!lock_init(&(region->segment_lock))) {
@@ -91,7 +91,7 @@ shared_t tm_create(size_t size, size_t align) {
 
   region->start = get_virt_addr(0);
 
-  region->first_seg_size = size;
+  region->seg_size = size;
   region->align = align;
   region->num_alloc_segments = INIT_SEG_SIZE;
 
@@ -133,7 +133,7 @@ void tm_destroy(shared_t shared) {
 
 void *tm_start(shared_t shared) { return ((region_t *)shared)->start; }
 
-size_t tm_size(shared_t shared) { return ((region_t *)shared)->first_seg_size; }
+size_t tm_size(shared_t shared) { return ((region_t *)shared)->seg_size; }
 
 size_t tm_align(shared_t shared) { return ((region_t *)shared)->align; }
 
