@@ -5,7 +5,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   segment->n_words = size / (align);
   segment->align = align;
   segment->tx_id_of_creator = tx;
-  atomic_store(&segment->deregistered, INVALID_TX);
+  atomic_store(&segment->deregistered, NONE);
 
   segment->cp_is_ro = calloc(segment->n_words, sizeof(int));
   if (!segment->cp_is_ro) {
@@ -34,7 +34,7 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   }
 
   for (size_t i = 0; i < segment->n_words; i++) {
-    segment->access_set[i] = INVALID_TX;
+    segment->access_set[i] = NONE;
   }
   // memset(segment->access_set, INVALID_TX,
   // ((int)segment->n_words)*sizeof(tx_t));

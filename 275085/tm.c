@@ -28,9 +28,6 @@
 #include "stack.h"
 #include "tm.h"
 
-#define NOT_FREE false
-#define FREE true
-
 //init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
   // allocate shared memory region
@@ -186,7 +183,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 // UTILS
 // ===================================================================================
 void add_to_access_set(int word_index, segment_t *seg, tx_t tx) {
-  if (seg->access_set[word_index] == INVALID_TX) {
+  if (seg->access_set[word_index] == NONE) {
     // here could push index of modified words
     seg->access_set[word_index] = tx;
   }
@@ -203,7 +200,7 @@ void write_to_correct_copy(int word_index, const void *src, segment_t *seg,
   void *start_words_addr = copy == 0 ? seg->cp1 : seg->cp0;
   memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
   // if word has not been written in before, update supporting datastructures
-  if (seg->access_set[word_index] == INVALID_TX) {
+  if (seg->access_set[word_index] == NONE) {
     add_to_access_set(word_index, seg, tx);
   }
 }
@@ -256,7 +253,7 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
     // if word not written, can read the r_o copy
     if (segment->is_written_in_epoch[word_index] == false) {
       // if first access and not read only transaction
-      if (segment->access_set[word_index] == INVALID_TX) {
+      if (segment->access_set[word_index] == NONE) {
         add_to_access_set(word_index, segment, tx);
       }
       lock_release(
@@ -337,7 +334,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
   } else { // word has not been written before
     // if one other tx in access set
     if (segment->access_set[word_index] != tx &&
-        segment->access_set[word_index] != INVALID_TX) {
+        segment->access_set[word_index] != NONE) {
       lock_release(&segment->word_locks[word_index]);
       return abort_alloc;
     } else {
@@ -407,7 +404,7 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   int segment_index = extract_seg_id_from_virt_addr(target);
   // set to be deregistered like written in project description
   lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
-      if(region->segment[segment_index].deregistered == INVALID_TX) { //if segment is not deregisterd then deregister it
+      if(region->segment[segment_index].deregistered == NONE) { //if segment is not deregisterd then deregister it
         region->segment[segment_index].deregistered = tx;
       } else {
         lock_release(&(region->segment_lock));
@@ -436,7 +433,7 @@ bool abort_transaction_tx(region_t *region, tx_t tx) {
       // else (check code at the bottom))
       lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
         if(segment->deregistered == tx) { //re-register the segment
-          segment->deregistered = INVALID_TX;
+          segment->deregistered = NONE;
         } 
       lock_release(&(region->segment_lock));
 
@@ -452,7 +449,7 @@ bool abort_transaction_tx(region_t *region, tx_t tx) {
           if (segment->access_set[i] == tx &&
               segment->is_written_in_epoch[i] == true) {
             lock_acquire(&segment->word_locks[i]);
-            segment->access_set[i] = INVALID_TX;
+            segment->access_set[i] = NONE;
             segment->is_written_in_epoch[i] = false;
             lock_release(&segment->word_locks[i]);
           }
@@ -477,7 +474,7 @@ void commit_transacations_in_epoch(region_t *region, tx_t unused(tx)) {
     if(region->segment_is_free[segment_index] == NOT_FREE) {
       segment = &region->segment[segment_index];
       // free segments that were set to be freed by a transaction on this epoch
-      if (segment->deregistered != INVALID_TX) {
+      if (segment->deregistered != NONE) {
         region->segment_is_free[segment_index] = FREE;
       } else {
         //commit the written words of this segment and reset segment vals
@@ -487,8 +484,8 @@ void commit_transacations_in_epoch(region_t *region, tx_t unused(tx)) {
         }
         //set metadata for next epoch
         segment->is_written_in_epoch[i] = false;
-        segment->access_set[i] = INVALID_TX;
-        segment->tx_id_of_creator = INVALID_TX; //creator no longer exists
+        segment->access_set[i] = NONE;
+        segment->tx_id_of_creator = NONE; //creator no longer exists
         }
       }
     }
