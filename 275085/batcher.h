@@ -21,8 +21,7 @@ typedef struct {
 
 typedef struct region_s {
   atomic_int tx_counter;
-  void *start; // start of shared memory region
-  int num_alloc_segments;
+  void *start;        // start of shared memory region
   segment_t *segment; // Array of segments
                       // allocated segments (used to keep track //maybe could
                       // use size of stack for this..

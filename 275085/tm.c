@@ -28,6 +28,7 @@
 #include "stack.h"
 #include "tm.h"
 
+#define N_INIT_SEGMENTS 64 // To avoid constant reallocation
 // init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
   // allocate shared memory region
@@ -37,13 +38,11 @@ shared_t tm_create(size_t size, size_t align) {
   }
 
   region->start = get_virt_addr(0);
-  region->num_alloc_segments = 64;
   region->seg_size = size;
   region->align = align;
   region->num_existing_segments = 1;
   region->tx_counter = 1;
-  region->segment =
-      (segment_t *)malloc(region->num_alloc_segments * sizeof(segment_t));
+  region->segment = (segment_t *)malloc(N_INIT_SEGMENTS * sizeof(segment_t));
   if (!region->segment) {
     free(region);
     return invalid_shared;
@@ -212,9 +211,9 @@ void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
 
 bool allocate_more_segments(region_t *region) {
   // if index is beyond number of allocated segments then allocated another one
-  if (region->num_existing_segments >= region->num_alloc_segments) {
+  if (region->num_existing_segments >= N_INIT_SEGMENTS) {
     region->segment = (segment_t *)realloc(
-        region->segment, sizeof(segment_t) * region->num_existing_segments + 1);
+        region->segment, sizeof(segment_t) * region->num_existing_segments);
     if (region->segment == NULL) { // check realloc is successfull
       return false;
     }
