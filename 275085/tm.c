@@ -165,15 +165,15 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   segment_t *segment = &region->segment[segment_index];
 
   //like in project description
-  void* target_word = target; //target location to read word(like in description)
+  void* target_word_addr = target; //target location to read word(like in description)
   int source_word_idx = source_start_index;
   while (source_word_idx < source_start_index + n_words) {
-    if (read_word(source_word_idx, target_word,
+    if (read_word(source_word_idx, target_word_addr,
                   segment, is_ro, tx) == abort_alloc) {
       return(abort_transaction_tx(region, tx));
     }
     source_word_idx++;
-    target_word += segment->align;
+    target_word_addr += segment->align;
   }
   return true;
 }
@@ -286,9 +286,9 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   int word_index = extract_word_index_from_virt_addr(
       target, region->segment[segment_index].align);
   int n_words = size / region->align;
+  
   int curr_word_offset = 0;
   int write_idx = word_index;
-
   while (write_idx < word_index + n_words) {
     if (write_word(write_idx, source + curr_word_offset, segment, tx) ==
         abort_alloc) {
