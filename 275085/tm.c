@@ -180,15 +180,19 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
 // UTILS
 // ===================================================================================
+void read_read_only_copy(int word_index, void *target, segment_t *seg){
+  void *start_words_addr = seg->cp_is_ro[word_index] == 0 ? seg->cp0 : seg->cp1;
+  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
+}
 
-void read_correct_copy(int word_index, void *target, segment_t *seg, int copy) {
-  void *start_words_addr = copy == 0 ? seg->cp0 : seg->cp1;
+void read_writable_copy(int word_index, void *target, segment_t *seg){
+  void *start_words_addr = (seg->cp_is_ro[word_index] == 0) ? seg->cp1 : seg->cp0;
   memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
 }
 
 //write to copy that is not the read copy
 void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
-  void *start_words_addr = seg->cp_is_ro[word_index] == 0 ? seg->cp1 : seg->cp0;
+  void *start_words_addr = (seg->cp_is_ro[word_index] == 0) ? seg->cp1 : seg->cp0;
   memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
 }
 
@@ -229,24 +233,21 @@ int add_segment(region_t *region) {
 // understood better but outcome is the same
 alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
                   tx_t tx) {
-
-  int ro_copy = segment->cp_is_ro[word_index];
-  int write_copy = (ro_copy == 0) ? 1 : 0;
   if (is_ro == true) {
-    read_correct_copy(word_index, target, segment, ro_copy);
+    read_read_only_copy(word_index, target, segment);
     return success_alloc;
   } else { // r_w transacation
     lock_acquire(&segment->word_locks[word_index]);
     // if word not written, can read the r_o copy
     if (segment->is_written_in_epoch[word_index] == false) {
-      // if first access and not read only transaction
+      // if first access add myself to access_set
       if (segment->access_set[word_index] == NONE) {
         segment->access_set[word_index] = tx;
       }
       lock_release(
           &segment
                ->word_locks[word_index]); // allow parallel reads on same word
-      read_correct_copy(word_index, target, segment, ro_copy);
+      read_read_only_copy(word_index, target, segment);
       return success_alloc;
     }
 
@@ -257,7 +258,8 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
       lock_release(
           &segment
                ->word_locks[word_index]); // allow parallel reads on same word
-      read_correct_copy(word_index, target, segment, write_copy);
+      //read the writable copy
+      read_writable_copy(word_index, target, segment);
       return success_alloc;
     } else {
       lock_release(&segment->word_locks[word_index]);
