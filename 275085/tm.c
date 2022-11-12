@@ -93,9 +93,9 @@ void tm_destroy(shared_t shared) {
   // free segment and related
   for (int i = 0; i < region->num_existing_segments; i++) {
     segment_t seg = region->segment[i];
-    free(seg.cp0);
-    free(seg.cp1);
-    free(seg.cp_is_ro);
+    free(seg.words_array_A);
+    free(seg.words_array_B);
+    free(seg.word_is_ro);
     free(seg.access_set);
     free(seg.is_written_in_epoch);
     for (size_t i = 0; i < seg.n_words; i++) {
@@ -189,20 +189,24 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 // UTILS
 // ===================================================================================
 void read_read_only_copy(int word_index, void *target, segment_t *seg) {
-  void *start_words_addr = seg->cp_is_ro[word_index] == 0 ? seg->cp0 : seg->cp1;
+  void *start_words_addr = seg->word_is_ro[word_index] == 0
+                               ? seg->words_array_A
+                               : seg->words_array_B;
   memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
 }
 
 void read_writable_copy(int word_index, void *target, segment_t *seg) {
-  void *start_words_addr =
-      (seg->cp_is_ro[word_index] == 0) ? seg->cp1 : seg->cp0;
+  void *start_words_addr = (seg->word_is_ro[word_index] == 0)
+                               ? seg->words_array_B
+                               : seg->words_array_A;
   memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
 }
 
 // write to copy that is not the read copy
 void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
-  void *start_words_addr =
-      (seg->cp_is_ro[word_index] == 0) ? seg->cp1 : seg->cp0;
+  void *start_words_addr = (seg->word_is_ro[word_index] == 0)
+                               ? seg->words_array_B
+                               : seg->words_array_A;
   memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
 }
 
@@ -483,7 +487,7 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
         // commit the written words of this segment and reset segment vals
         for (size_t i = 0; i < segment->n_words; i++) {
           if (segment->is_written_in_epoch[i] == true) {
-            segment->cp_is_ro[i] = (segment->cp_is_ro[i] + 1) % 2;
+            segment->word_is_ro[i] = (segment->word_is_ro[i] + 1) % 2;
           }
           // set metadata for next epoch
           segment->is_written_in_epoch[i] = false;

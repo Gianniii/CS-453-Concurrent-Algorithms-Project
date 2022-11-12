@@ -7,29 +7,29 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   segment->tx_id_of_creator = tx;
   segment->deregistered = NONE;
 
-  segment->cp_is_ro = calloc(segment->n_words, sizeof(int));
-  if (!segment->cp_is_ro) {
+  segment->word_is_ro = calloc(segment->n_words, sizeof(int));
+  if (!segment->word_is_ro) {
     return false;
   }
 
-  segment->cp0 = calloc(segment->n_words, align);
-  if (!segment->cp0) {
-    free(segment->cp_is_ro);
+  segment->words_array_A = calloc(segment->n_words, align);
+  if (!segment->words_array_A) {
+    free(segment->word_is_ro);
     return false;
   }
-  segment->cp1 = calloc(segment->n_words, align);
-  if (!segment->cp1) {
-    free(segment->cp_is_ro);
-    free(segment->cp0);
+  segment->words_array_B = calloc(segment->n_words, align);
+  if (!segment->words_array_B) {
+    free(segment->word_is_ro);
+    free(segment->words_array_A);
     return false;
   }
 
   // allocate access set and init to -1
   segment->access_set = malloc(segment->n_words * sizeof(tx_t));
   if (!segment->access_set) {
-    free(segment->cp0);
-    free(segment->cp1);
-    free(segment->cp_is_ro);
+    free(segment->words_array_A);
+    free(segment->words_array_B);
+    free(segment->word_is_ro);
     return false;
   }
 
@@ -43,9 +43,9 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   // been written in the epoch
   segment->is_written_in_epoch = (bool *)calloc(segment->n_words, sizeof(bool));
   if (!segment->is_written_in_epoch) {
-    free(segment->cp0);
-    free(segment->cp1);
-    free(segment->cp_is_ro);
+    free(segment->words_array_A);
+    free(segment->words_array_B);
+    free(segment->word_is_ro);
     free(segment->access_set);
     return false;
   }
@@ -54,9 +54,9 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
   segment->word_locks = malloc(segment->n_words * sizeof(struct lock_t));
   if (!segment->is_written_in_epoch) {
     free(segment->is_written_in_epoch);
-    free(segment->cp0);
-    free(segment->cp1);
-    free(segment->cp_is_ro);
+    free(segment->words_array_A);
+    free(segment->words_array_B);
+    free(segment->word_is_ro);
     free(segment->access_set);
     return false;
   }
@@ -64,9 +64,9 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
     if (!lock_init(&(segment->word_locks[i]))) {
       free(segment->word_locks);
       free(segment->is_written_in_epoch);
-      free(segment->cp0);
-      free(segment->cp1);
-      free(segment->cp_is_ro);
+      free(segment->words_array_A);
+      free(segment->words_array_B);
+      free(segment->word_is_ro);
       free(segment->access_set);
       return false;
     }

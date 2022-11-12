@@ -16,19 +16,19 @@
 #define FREE true
 static const tx_t NONE = 0xFFFFF;
 /**typedef struct {
-  int cp_is_ro;
+  int word_is_ro;
   bool is_written_in_epoch
 } control_t;*/
 // or contro_t // control structure for each word!!!! // idea wouldnt need
-// to use several array(cp0, cp1, cp_is_ro,
+// to use several array(words_array_A, words_array_B, word_is_ro,
 // access_set, is_written_in_epoch, word_locks) but one array of
 // words[word_index]
 typedef struct {
   size_t n_words;
-  void *cp0;        // Like in Description: first copy from description
-  void *cp1;        // Like in Description: second copy from description
-  int *cp_is_ro;    // Like in Description: Array of flags for read-only copy
-  tx_t *access_set; // Like in Description: Array of read-write tx which have
+  void *words_array_A; // Like in Description: first copy from description
+  void *words_array_B; // Like in Description: second copy from description
+  int *word_is_ro;     // Like in Description: Array of flags for read-only copy
+  tx_t *access_set;    // Like in Description: Array of read-write tx which have
                     // accessed the word (the first to access the word(read or
                     // write) will own it for the epoch)
   bool *is_written_in_epoch; // Like in project descrition : Array of boolean to
