@@ -131,9 +131,7 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
     return invalid_tx;
   }
   // get index of transacation
-
-  tx_t id = (tx_t)(atomic_fetch_add(&region->tx_counter, 1) %
-            region->batcher.n_in_epoch);
+  tx_t id = (tx_t)((atomic_fetch_add(&region->tx_counter, 1)) % region->batcher.n_in_epoch);
   region->batcher.is_ro[id] = is_ro; //no need for atomic since this is unique to each transcation
   return id;
 }
@@ -321,7 +319,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
 
   // if word has been written before
   if (segment->is_written_in_epoch[word_index] == true) {
-    // release word lock to allow concurrent reads
+    // release word lock to allow concurrent write
     lock_release(&segment->word_locks[word_index]);
 
     // if tx in the access set
