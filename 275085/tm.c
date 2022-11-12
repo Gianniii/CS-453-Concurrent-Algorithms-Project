@@ -214,12 +214,10 @@ bool allocate_more_segments(region_t *region) {
   // if index is beyond number of allocated segments then allocated another one
   if (region->num_existing_segments >= region->num_alloc_segments) {
     region->segment = (segment_t *)realloc(
-        region->segment, sizeof(segment_t) * region->num_alloc_segments + 1);
+        region->segment, sizeof(segment_t) * region->num_existing_segments + 1);
     if (region->segment == NULL) { // check realloc is successfull
       return false;
     }
-    // update number of allocated segments
-    region->num_alloc_segments += 1;
   }
   return true;
 }
@@ -470,7 +468,7 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
   region_t *region = (region_t *)shared;
   segment_t *segment;
   // go through all valid segments(not freed)
-  for (int segment_index = 0; segment_index < region->num_alloc_segments;
+  for (int segment_index = 0; segment_index < region->num_existing_segments;
        segment_index++) {
     if (region->segment_is_free[segment_index] == NOT_FREE) {
       segment = &region->segment[segment_index];
