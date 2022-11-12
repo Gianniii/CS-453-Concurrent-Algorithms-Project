@@ -50,9 +50,4 @@ int extract_seg_id_from_virt_addr(void const *addr);
 
 alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
                   void *target);
-// alloc_t write_word(shared_t region, tx_t tx, int id, const void *target);
-
-// alloc_t read_word(int word_idx, void * target, segment_t *segment, bool, tx_t
-// tx);
-alloc_t write_word(int word_idx, const void *target, segment_t *segment,
-                   tx_t tx);
+alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *target);
