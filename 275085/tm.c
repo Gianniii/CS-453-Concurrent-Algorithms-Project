@@ -193,14 +193,9 @@ void read_correct_copy(int word_index, void *target, segment_t *seg, int copy) {
 }
 
 void write_to_correct_copy(int word_index, const void *src, segment_t *seg,
-                           int copy, tx_t tx) {
-  seg->is_written_in_epoch[word_index] = true; // set is_written flag to true;
+                           int copy) {
   void *start_words_addr = copy == 0 ? seg->cp1 : seg->cp0;
   memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
-  // if word has not been written in before, update supporting datastructures
-  if (seg->access_set[word_index] == NONE) {
-    add_to_access_set(word_index, seg, tx);
-  }
 }
 
 bool allocate_more_segments(region_t *region) {
@@ -312,7 +307,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
 // Like in project description
 alloc_t write_word(int word_index, const void *source, segment_t *segment,
                    tx_t tx) {
-  int ro_copy = segment->cp_is_ro[word_index];
+  int ro_copy = segment->cp_is_ro[word_index]; //TODO THIS INT IS NOT NECESSARY!! REMOVE IT
 
   // acquire word lock
   lock_acquire(&segment->word_locks[word_index]);
@@ -324,20 +319,26 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
 
     // if tx in the access set
     if (segment->access_set[word_index] == tx) {
-      write_to_correct_copy(word_index, source, segment, ro_copy, tx);
+      write_to_correct_copy(word_index, source, segment, ro_copy);
       return success_alloc;
     } else {
       return abort_alloc;
     }
-  } else { // word has not been written before
+  } else { //abort if word has already been accessed but another transacation
     // if one other tx in access set
     if (segment->access_set[word_index] != tx &&
         segment->access_set[word_index] != NONE) {
       lock_release(&segment->word_locks[word_index]);
       return abort_alloc;
-    } else {
-      write_to_correct_copy(word_index, source, segment, ro_copy, tx);
-      lock_release(&segment->word_locks[word_index]);
+    } else { 
+      //if first to access_set then update it
+      if (segment->access_set[word_index] == NONE) {
+        add_to_access_set(word_index, segment, tx);
+      }
+      segment->is_written_in_epoch[word_index] = true; // set is_written flag to true;
+      //free lock allow for concurrent writes
+      lock_release(&segment->word_locks[word_index]); 
+      write_to_correct_copy(word_index, source, segment, ro_copy);
       return success_alloc;
     }
   }
