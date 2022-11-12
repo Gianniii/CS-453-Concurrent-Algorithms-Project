@@ -160,20 +160,20 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   bool is_ro = region->batcher.is_ro[tx];
   int n_words = size / region->align;
   int segment_index = extract_seg_id_from_virt_addr(source);
-  int word_index = extract_word_index_from_virt_addr(
+  int source_start_index = extract_word_index_from_virt_addr(
       source, region->segment[segment_index].align);
   segment_t *segment = &region->segment[segment_index];
 
-  // Read words, if fail to read a word then abort
-  int curr_word_offset = 0;
-  int read_idx = word_index;
-  while (read_idx < word_index + n_words) {
-    if (read_word(read_idx, target + (curr_word_offset * segment->align),
+  //like in project description
+  int j = 0; //target location to read word(like in description)
+  int i = source_start_index;
+  while (i < source_start_index + n_words) {
+    if (read_word(i, target + (j * segment->align),
                   segment, is_ro, tx) == abort_alloc) {
       return(abort_transaction_tx(region, tx));
     }
-    read_idx++;
-    curr_word_offset++;
+    i++;
+    j++;
   }
   return true;
 }
@@ -300,7 +300,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   return true;
 }
 
-// Like in project description
+//Exactly like Project description
 alloc_t write_word(int word_index, const void *source, segment_t *segment,
                    tx_t tx) {
   // acquire word lock
