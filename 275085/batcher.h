@@ -21,14 +21,13 @@ typedef struct {
 
 typedef struct region_s {
   atomic_int tx_counter;
-  void *start;        // start of shared memory region
+  void *start; // start of shared memory region
+  atomic_int n_segments;
   segment_t *segment; // Array of segments
                       // allocated segments (used to keep track //maybe could
                       // use size of stack for this..
   //*for realloc)
-  bool *segment_is_free; // array of freed segment indexes available fo
-                         // reallocation, (-1 if not available)
-  atomic_int num_existing_segments; // start from 1
+  bool *segment_is_free; // array of freed segment flags
   struct lock_t global_lock;
   // struct lock_t stack_lock; //for stack
   batcher_t batcher;

@@ -40,7 +40,7 @@ shared_t tm_create(size_t size, size_t align) {
   region->start = get_virt_addr(0);
   region->seg_size = size;
   region->align = align;
-  region->num_existing_segments = 1;
+  region->n_segments = 1;
   region->tx_counter = 1;
   region->segment = (segment_t *)malloc(N_INIT_SEGMENTS * sizeof(segment_t));
   if (!region->segment) {
@@ -90,7 +90,7 @@ void tm_destroy(shared_t shared) {
   region_t *region = (region_t *)shared;
 
   // free segment and related
-  for (int i = 0; i < region->num_existing_segments; i++) {
+  for (int i = 0; i < region->n_segments; i++) {
     segment_t seg = region->segment[i];
     free(seg.words_array_A);
     free(seg.words_array_B);
@@ -211,9 +211,9 @@ void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
 
 bool allocate_more_segments(region_t *region) {
   // if index is beyond number of allocated segments then allocated another one
-  if (region->num_existing_segments >= N_INIT_SEGMENTS) {
+  if (region->n_segments >= N_INIT_SEGMENTS) {
     region->segment = (segment_t *)realloc(
-        region->segment, sizeof(segment_t) * region->num_existing_segments);
+        region->segment, sizeof(segment_t) * region->n_segments);
     if (region->segment == NULL) { // check realloc is successfull
       return false;
     }
@@ -223,8 +223,8 @@ bool allocate_more_segments(region_t *region) {
 
 // Care: Segment must be locked during this operation
 int add_segment(region_t *region) {
-  int idx = region->num_existing_segments;
-  region->num_existing_segments++;
+  int idx = region->n_segments;
+  region->n_segments++;
   // might have to allocate more segments to accomodate this extra segment
   if (!allocate_more_segments(region)) {
     return -1;
@@ -359,12 +359,12 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   region_t *region = (region_t *)shared;
 
   // check if there is a shared index for segment
-  // printf("%d", region->num_existing_segments);
+  // printf("%d", region->n_segments);
   lock_acquire(&(region->global_lock));
   int i = 0;
   int index = -1;
   // check if can reuse one of the already allocated segments
-  while (index == -1 && i < region->num_existing_segments) {
+  while (index == -1 && i < region->n_segments) {
     if (region->segment_is_free[i] != NOT_FREE) {
       index = i;
     }
@@ -422,7 +422,7 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
 bool abort_transaction_tx(shared_t shared, tx_t tx) {
   region_t *region = (region_t *)shared;
   // Iterate over all non free'd segments
-  int max_segment_index = region->num_existing_segments;
+  int max_segment_index = region->n_segments;
   segment_t *segment;
   for (int segment_index = 0; segment_index < max_segment_index;
        segment_index++) {
@@ -467,7 +467,7 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
   region_t *region = (region_t *)shared;
   segment_t *segment;
   // go through all valid segments(not freed)
-  for (int segment_index = 0; segment_index < region->num_existing_segments;
+  for (int segment_index = 0; segment_index < region->n_segments;
        segment_index++) {
     if (region->segment_is_free[segment_index] == NOT_FREE) {
       segment = &region->segment[segment_index];
