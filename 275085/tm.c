@@ -165,15 +165,15 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   segment_t *segment = &region->segment[segment_index];
 
   //like in project description
-  int j = 0; //target location to read word(like in description)
-  int i = source_start_index;
-  while (i < source_start_index + n_words) {
-    if (read_word(i, target + (j * segment->align),
+  void* target_word = target; //target location to read word(like in description)
+  int source_word_idx = source_start_index;
+  while (source_word_idx < source_start_index + n_words) {
+    if (read_word(source_word_idx, target_word,
                   segment, is_ro, tx) == abort_alloc) {
       return(abort_transaction_tx(region, tx));
     }
-    i++;
-    j++;
+    source_word_idx++;
+    target_word += segment->align;
   }
   return true;
 }
