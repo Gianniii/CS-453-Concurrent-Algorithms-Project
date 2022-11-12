@@ -65,7 +65,7 @@ shared_t tm_create(size_t size, size_t align) {
   }
 
   align = align < sizeof(void *) ? sizeof(void *) : align;
-  if (!segment_init(&region->segment[0], -1, size, align)) {
+  if (!segment_init(&region->segment[0], size, align)) {
     lock_cleanup(&(region->global_lock));
     free(region->segment_is_free);
     free(region->segment);
@@ -358,7 +358,7 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
  * @return Whether the whole transaction can continue (success/nomem), or not
  *(abort_alloc)
  **/
-alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
+alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   region_t *region = (region_t *)shared;
 
   // check if there is a shared index for segment
@@ -381,7 +381,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
   }
 
   // intialize new segment with calculated index
-  if (!segment_init(&region->segment[index], tx, size, region->align)) {
+  if (!segment_init(&region->segment[index], size, region->align)) {
     return nomem_alloc;
   }
   // no longer free index
@@ -441,24 +441,18 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
         segment->deregistered = NONE;
       }
       lock_release(&(region->global_lock));
-
-      // free the segment that was created for "this" aborted transaction
-      if (segment->tx_id_of_creator == tx) {
-        region->segment_is_free[segment_index] = FREE;
-      } else {
-        // Check words this tx accessed and wrote to and and make those words
-        // available again
-        for (size_t i = 0; i < segment->n_words;
-             i++) { // TODO: Can optimize by using stack of modified
-                    // word_indexes instead of iterating over all words and
-                    // checking if they have been written
-          if (segment->access_set[i] == tx &&
-              segment->is_written_in_epoch[i] == true) {
-            lock_acquire(&segment->word_locks[i]);
-            segment->access_set[i] = NONE;
-            segment->is_written_in_epoch[i] = false;
-            lock_release(&segment->word_locks[i]);
-          }
+      // Check words this tx accessed and wrote to and and make those words
+      // available again
+      for (size_t i = 0; i < segment->n_words;
+           i++) { // TODO: Can optimize by using stack of modified
+                  // word_indexes instead of iterating over all words and
+                  // checking if they have been written
+        if (segment->access_set[i] == tx &&
+            segment->is_written_in_epoch[i] == true) {
+          lock_acquire(&segment->word_locks[i]);
+          segment->access_set[i] = NONE;
+          segment->is_written_in_epoch[i] = false;
+          lock_release(&segment->word_locks[i]);
         }
       }
     }
@@ -492,7 +486,6 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
           // set metadata for next epoch
           segment->is_written_in_epoch[i] = false;
           segment->access_set[i] = NONE;
-          segment->tx_id_of_creator = NONE; // creator no longer exists
         }
       }
     }

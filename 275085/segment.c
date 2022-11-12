@@ -1,10 +1,9 @@
 #include "segment.h"
 
 // init segment
-bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
+bool segment_init(segment_t *segment, size_t size, size_t align) {
   segment->n_words = size / (align);
   segment->align = align;
-  segment->tx_id_of_creator = tx;
   segment->deregistered = NONE;
 
   segment->word_is_ro = calloc(segment->n_words, sizeof(int));

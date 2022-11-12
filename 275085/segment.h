@@ -35,14 +35,13 @@ typedef struct {
                              // flag if the word has been written
   struct lock_t *word_locks; // used because to lazy to use atomic variables
   int align;                 // size of a word
-  tx_t tx_id_of_creator;
   tx_t deregistered; // to be freed in tm_free(equals NONE if not set else it
                      // equals the tx that deregistered it)
   // stack_t modified_word_indexes       //Potential optimization to avoid
   // iterating over all words and checking if they have been written in epoch
 } segment_t;
 
-bool segment_init(segment_t *seg, size_t size, size_t align, tx_t tx);
+bool segment_init(segment_t *seg, size_t size, size_t align);
 void *get_virt_addr(int);
 int extract_word_index_from_virt_addr(void const *addr, size_t align);
 int extract_seg_id_from_virt_addr(void const *addr);
