@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include "stack.h"
 #include "segment.h"
-
+//Region and batcher(i.e segment management structs)
 typedef struct
 {
   int cur_epoch;           // From description: keep track of the current epoch through a counter
@@ -19,19 +19,19 @@ typedef struct
 
 typedef struct region_s
 {
-  _Atomic(tx_t) current_transaction_id;
-  void *start;
+  atomic_int tx_counter; 
+  void *start; //start of shared memory region
   int num_alloc_segments;
   segment_t *segment; // Array of segments
                       // allocated segments (used to keep track //maybe could use size of stack for this..
   //*for realloc)
-  size_t align;
   bool *segment_is_free;         // array of freed segment indexes available fo reallocation, (-1 if not available)
   atomic_int num_existing_segments; // start from 1
   struct lock_t global_lock;
   // struct lock_t stack_lock; //for stack
   batcher_t batcher;
-  size_t seg_size;
+  size_t align;
+  size_t seg_size; //just for tm_size
   // stack_t free_seg_indices;
 } region_t;
 

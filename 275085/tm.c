@@ -41,7 +41,7 @@ shared_t tm_create(size_t size, size_t align) {
   region->seg_size = size;
   region->align = align;
   region->num_existing_segments = 1;
-  region->current_transaction_id = 1;
+  region->tx_counter = 1;
   region->segment = (segment_t *)malloc(region->num_alloc_segments * sizeof(segment_t));
   if (!region->segment) {
     free(region);
@@ -131,8 +131,9 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
     return invalid_tx;
   }
   // get index of transacation
-  tx_t id = atomic_fetch_add(&region->current_transaction_id, 1) %
-            region->batcher.n_in_epoch;
+
+  tx_t id = (tx_t)(atomic_fetch_add(&region->tx_counter, 1) %
+            region->batcher.n_in_epoch);
   region->batcher.is_ro[id] = is_ro; //no need for atomic since this is unique to each transcation
   return id;
 }
