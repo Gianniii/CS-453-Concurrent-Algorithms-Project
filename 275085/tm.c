@@ -28,7 +28,7 @@
 #include "stack.h"
 #include "tm.h"
 
-#define N_INIT_SEGMENTS 64 // To avoid constant reallocation
+#define N_INIT_SEGMENTS 128 // To avoid constant reallocation
 // init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
   // allocate shared memory region

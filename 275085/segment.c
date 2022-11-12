@@ -2,8 +2,8 @@
 
 // init segment
 bool segment_init(segment_t *segment, size_t size, size_t align) {
-  segment->n_words = size / (align);
   segment->align = align;
+  segment->n_words = size / (align);
   segment->deregistered = NONE;
 
   segment->word_is_ro = calloc(segment->n_words, sizeof(int));
