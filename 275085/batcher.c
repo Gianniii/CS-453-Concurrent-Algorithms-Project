@@ -8,10 +8,10 @@ bool init_batcher(batcher_t *batcher) {
     lock_cleanup(&(batcher->lock));
     return false;
   }
-  batcher->n_blocked = 0; //obv
-  batcher->cur_epoch = 0; //start at epoch 0
-  batcher->n_in_epoch = 0; //init num of tx in epoch is 0
-  batcher->n_remaining = 0; //initial num tx in batcher is 0
+  batcher->n_blocked = 0;   // obv
+  batcher->cur_epoch = 0;   // start at epoch 0
+  batcher->n_in_epoch = 0;  // init num of tx in epoch is 0
+  batcher->n_remaining = 0; // initial num tx in batcher is 0
   batcher->is_ro = malloc(sizeof(bool));
   if (batcher->is_ro == NULL) {
     return false;
@@ -19,13 +19,13 @@ bool init_batcher(batcher_t *batcher) {
   return true;
 }
 
-// look project description
+// Behavior from project description
 bool enter_batcher(batcher_t *batcher) {
   lock_acquire(&batcher->lock);
   // if firs tx to enter batcher
   if (batcher->n_remaining == 0) {
     batcher->n_remaining = 1;
-    batcher->n_in_epoch = batcher->n_remaining;
+    batcher->n_in_epoch = 1;
     // alloc is_ro for this first tx.
   } else {
     // block and wait for next epoch.
@@ -37,9 +37,9 @@ bool enter_batcher(batcher_t *batcher) {
 }
 
 // Leave and wake up other threads if are last
-//Like in project description
+// Like in project description
 bool leave_batcher(shared_t shared, tx_t tx) {
-  region_t* region = (region_t*)shared;
+  region_t *region = (region_t *)shared;
   batcher_t *batcher = &(region->batcher);
   lock_acquire(&batcher->lock);
   batcher->n_remaining--;
@@ -52,13 +52,6 @@ bool leave_batcher(shared_t shared, tx_t tx) {
   }
   lock_release(&batcher->lock);
   return true;
-}
-
-void destroy_batcher(batcher_t *batcher) {
-  lock_cleanup(&(batcher->lock));
-  if (batcher->is_ro != NULL)
-    free(batcher->is_ro);
-  pthread_cond_destroy(&(batcher->all_tx_left));
 }
 
 void prepare_batcher_for_next_epoch(batcher_t *batcher) {

@@ -11,8 +11,7 @@
 #include <string.h>
 
 // Segment constants
-#define SEGMENT_SHIFT 24
-#define MAX_NUM_SEGMENTS 0x10000
+#define MAX_NUM_SEGMENTS 0x10000 // From project description
 #define NOT_FREE false
 #define FREE true
 static const tx_t NONE = 0xFFFFF;

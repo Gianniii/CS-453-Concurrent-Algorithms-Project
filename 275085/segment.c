@@ -78,17 +78,17 @@ bool segment_init(segment_t *segment, tx_t tx, size_t size, size_t align) {
 // encoding of addr (segment_id + 1) << shift_constant + word offset
 // create get virtual address from a segment id
 void *get_virt_addr(int seg_id) {
-  return (void *)((intptr_t)((++seg_id) << SEGMENT_SHIFT));
+  return (void *)((intptr_t)((++seg_id) << 24));
 }
 
 int extract_word_index_from_virt_addr(void const *addr, size_t align) {
-  intptr_t tmp = (intptr_t)addr >> SEGMENT_SHIFT;
-  intptr_t shifted_segment_id = tmp << SEGMENT_SHIFT;
+  intptr_t tmp = (intptr_t)addr >> 24;
+  intptr_t shifted_segment_id = tmp << 24;
   int word_offset = (intptr_t)addr - shifted_segment_id;
   return word_offset / align; // word_offset/align gives word_index
 }
 
 int extract_seg_id_from_virt_addr(void const *addr) {
-  intptr_t num_s = (intptr_t)addr >> SEGMENT_SHIFT;
+  intptr_t num_s = (intptr_t)addr >> 24;
   return num_s - 1;
 }

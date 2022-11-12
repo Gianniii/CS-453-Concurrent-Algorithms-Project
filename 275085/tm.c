@@ -104,7 +104,12 @@ void tm_destroy(shared_t shared) {
     free(seg.word_locks);
   }
 
-  destroy_batcher(&(region->batcher));
+  // free batcher
+  batcher_t batcher = region->batcher;
+  pthread_cond_destroy(&(batcher.all_tx_left));
+  lock_cleanup(&(batcher.lock));
+  if (batcher.is_ro != NULL)
+    free(batcher.is_ro);
   free(region->segment);
   free(region->segment_is_free);
 
