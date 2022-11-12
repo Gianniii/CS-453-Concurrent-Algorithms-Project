@@ -180,12 +180,6 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
 // UTILS
 // ===================================================================================
-void add_to_access_set(int word_index, segment_t *seg, tx_t tx) {
-  if (seg->access_set[word_index] == NONE) {
-    // here could push index of modified words
-    seg->access_set[word_index] = tx;
-  }
-}
 
 void read_correct_copy(int word_index, void *target, segment_t *seg, int copy) {
   void *start_words_addr = copy == 0 ? seg->cp0 : seg->cp1;
@@ -247,7 +241,7 @@ alloc_t read_word(int word_index, void *target, segment_t *segment, bool is_ro,
     if (segment->is_written_in_epoch[word_index] == false) {
       // if first access and not read only transaction
       if (segment->access_set[word_index] == NONE) {
-        add_to_access_set(word_index, segment, tx);
+        segment->access_set[word_index] = tx;
       }
       lock_release(
           &segment
@@ -324,20 +318,17 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
     } else {
       return abort_alloc;
     }
-  } else { //abort if word has already been accessed but another transacation
+  } else { //abort if word has already been accessed by another tx
     // if one other tx in access set
-    if (segment->access_set[word_index] != tx &&
-        segment->access_set[word_index] != NONE) {
+    if (segment->access_set[word_index] != NONE && segment->access_set[word_index] != tx) {
       lock_release(&segment->word_locks[word_index]);
       return abort_alloc;
-    } else { 
-      //if first to access_set then update it
-      if (segment->access_set[word_index] == NONE) {
-        add_to_access_set(word_index, segment, tx);
-      }
+    } else { //CASE: first to access and write to word. So update datastructures and release lock to allow concurent writes
+      segment->access_set[word_index] = tx;
       segment->is_written_in_epoch[word_index] = true; // set is_written flag to true;
-      //free lock allow for concurrent writes
-      lock_release(&segment->word_locks[word_index]); 
+      lock_release(&segment->word_locks[word_index]); //allow concurrent writes
+
+
       write_to_correct_copy(word_index, source, segment, ro_copy);
       return success_alloc;
     }
