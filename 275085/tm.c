@@ -283,19 +283,18 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   region_t *region = (region_t *)shared;
   int segment_index = extract_seg_id_from_virt_addr(target);
   segment_t *segment = &region->segment[segment_index];
-  int word_index = extract_word_index_from_virt_addr(
+  int start_target_word_index = extract_word_index_from_virt_addr(
       target, region->segment[segment_index].align);
   int n_words = size / region->align;
-  
-  int curr_word_offset = 0;
-  int write_idx = word_index;
-  while (write_idx < word_index + n_words) {
-    if (write_word(write_idx, source + curr_word_offset, segment, tx) ==
+  const void* word_source = (void*)source;
+  int target_idx = start_target_word_index;
+  while (target_idx < start_target_word_index + n_words) {
+    if (write_word(target_idx, word_source, segment, tx) ==
         abort_alloc) {
       return(abort_transaction_tx(region, tx));
     }
-    write_idx++;
-    curr_word_offset++;
+    target_idx++;
+    word_source++;
   }
   return true;
 }
