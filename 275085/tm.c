@@ -56,7 +56,7 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
  
-  if (!lock_init(&(region->segment_lock))) {
+  if (!lock_init(&(region->global_lock))) {
     free(region->segment_is_free);
     free(region->segment);
     free(region);
@@ -65,7 +65,7 @@ shared_t tm_create(size_t size, size_t align) {
 
   align = align < sizeof(void *) ? sizeof(void *) : align;
   if (!segment_init(&region->segment[0], -1, size, align)) {
-    lock_cleanup(&(region->segment_lock));
+    lock_cleanup(&(region->global_lock));
     free(region->segment_is_free);
     free(region->segment);
     free(region);
@@ -73,7 +73,7 @@ shared_t tm_create(size_t size, size_t align) {
   }
 
   if (!init_batcher(&region->batcher)) {
-    lock_cleanup(&(region->segment_lock));
+    lock_cleanup(&(region->global_lock));
     free(region->segment_is_free);
     free(region->segment);
     free(region);
@@ -107,8 +107,7 @@ void tm_destroy(shared_t shared) {
   free(region->segment);
   free(region->segment_is_free);
 
-  // locks clean-up
-  lock_cleanup(&(region->segment_lock));
+  lock_cleanup(&(region->global_lock));
 
   free(region);
 }
@@ -321,7 +320,7 @@ alloc_t write_word(int word_index, const void *source, segment_t *segment,
 
   // if word has been written before
   if (segment->is_written_in_epoch[word_index] == true) {
-    // release word lock
+    // release word lock to allow concurrent reads
     lock_release(&segment->word_locks[word_index]);
 
     // if tx in the access set
@@ -361,7 +360,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
 
   // check if there is a shared index for segment
   // printf("%d", region->num_existing_segments);
-  lock_acquire(&(region->segment_lock));
+  lock_acquire(&(region->global_lock));
   int i = 0;
   int index = -1;
   // check if can reuse one of the already allocated segments
@@ -387,7 +386,7 @@ alloc_t tm_alloc(shared_t shared, tx_t tx, size_t size, void **target) {
 
   // set target to virtual address of the segment
   *target = get_virt_addr(index);
-  lock_release(&(region->segment_lock));
+  lock_release(&(region->global_lock));
   return success_alloc;
 }
 
@@ -403,23 +402,23 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
 
   int segment_index = extract_seg_id_from_virt_addr(target);
   // set to be deregistered like written in project description
-  lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
+  lock_acquire(&(region->global_lock)); //TODO more finegrain locking or atomic variables in segment
       if(region->segment[segment_index].deregistered == NONE) { //if segment is not deregisterd then deregister it
         region->segment[segment_index].deregistered = tx;
       } else {
-        lock_release(&(region->segment_lock));
+        lock_release(&(region->global_lock));
         //if has already been deregistered then abort the transacation
         if (region->segment[segment_index].deregistered != tx) {
           return(abort_transaction_tx(region, tx));
         }
       }
-  lock_release(&(region->segment_lock));
+  lock_release(&(region->global_lock));
   return true;
 }
 
 //always returns false
-bool abort_transaction_tx(region_t *region, tx_t tx) {
-
+bool abort_transaction_tx(shared_t shared, tx_t tx) {
+  region_t* region = (region_t*)shared;
   //Iterate over all non free'd segments
   int max_segment_index = region->num_existing_segments;
   segment_t *segment;
@@ -431,11 +430,11 @@ bool abort_transaction_tx(region_t *region, tx_t tx) {
       // unset segments on which tx has called tm_free previously (tx_tmp is
       // needed because of the atomic_compare_exchange, which perform if then
       // else (check code at the bottom))
-      lock_acquire(&(region->segment_lock)); //TODO more finegrain locking or atomic variables in segment
+      lock_acquire(&(region->global_lock)); //TODO more finegrain locking or atomic variables in segment
         if(segment->deregistered == tx) { //re-register the segment
           segment->deregistered = NONE;
         } 
-      lock_release(&(region->segment_lock));
+      lock_release(&(region->global_lock));
 
       //free the segment that was created for "this" aborted transaction
       if (segment->tx_id_of_creator == tx) {
@@ -466,7 +465,8 @@ bool abort_transaction_tx(region_t *region, tx_t tx) {
  * @param tx Current transaction
  **/
 //Commit is only called once last transacation of epoch leaves the batcher
-void commit_transacations_in_epoch(region_t *region, tx_t unused(tx)) {
+void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
+  region_t* region = (region_t*) shared;
   segment_t *segment;
   // go through all valid segments(not freed)
   for (int segment_index = 0; segment_index < region->num_alloc_segments;

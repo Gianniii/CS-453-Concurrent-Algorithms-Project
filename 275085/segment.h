@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Segment constants TODO CHANGE ALL
+// Segment constants
 #define SEGMENT_SHIFT 24
 #define MAX_NUM_SEGMENTS 0x10000    
 #define NOT_FREE false

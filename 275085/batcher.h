@@ -1,20 +1,20 @@
 #pragma once
 
 #include "lock.h"
-#include "segment.h"
 #include "tm.h"
 #include <stdlib.h>
 #include "stack.h"
+#include "segment.h"
 
-typedef struct batcher_s
+typedef struct
 {
-  int cur_epoch;           // keep track of the current epoch through a counter
-  int n_remaining;         // remaining threads in counter
+  int cur_epoch;           // From description: keep track of the current epoch through a counter
+  int n_remaining;         // From project description: remaining threads in counter
   int n_blocked;           // number of blocked transacation threads
   int n_in_epoch;          // current number of transacations running in batcher
   struct lock_t lock;      // lock for batcher functions
-  pthread_cond_t cond_var; // conditional variable for waking waiting threads
-  bool *is_ro;             // Array to keep track which transacations are read-only
+  pthread_cond_t all_tx_left; // conditional variable for waking waiting threads(Like batcer from description)
+  bool *is_ro;             // Array to keep track which transacations are read-only, by mapping their id <->index in array
 } batcher_t;
 
 typedef struct region_s
@@ -28,19 +28,20 @@ typedef struct region_s
   size_t align;
   bool *segment_is_free;         // array of freed segment indexes available fo reallocation, (-1 if not available)
   atomic_int num_existing_segments; // start from 1
-  struct lock_t segment_lock;
+  struct lock_t global_lock;
   // struct lock_t stack_lock; //for stack
   batcher_t batcher;
   size_t seg_size;
   // stack_t free_seg_indices;
 } region_t;
 
+
 // we have a shared memory region between threads, what exactly re segments for? is a 1 segment per batch?
 bool init_batcher(batcher_t * batcher);
-bool enter_batcher(batcher_t * batcher);
-bool leave_batcher(region_t * region, tx_t tx);
 void destroy_batcher(batcher_t * batcher);
+bool enter_batcher(batcher_t * batcher);
+bool leave_batcher(shared_t shared, tx_t tx);
 void prepare_batcher_for_next_epoch(batcher_t *batcher);
 
-bool abort_transaction_tx(region_t * region, tx_t tx);
-void commit_transacations_in_epoch(region_t * region, tx_t tx);
+bool abort_transaction_tx(shared_t shared, tx_t tx);
+void commit_transcations_in_epoch(shared_t  shared, tx_t tx);

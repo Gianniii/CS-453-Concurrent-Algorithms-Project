@@ -4,14 +4,14 @@ bool init_batcher(batcher_t *batcher) {
   if (!lock_init(&(batcher->lock))) {
     return false;
   }
-  if (pthread_cond_init(&(batcher->cond_var), NULL) != 0) {
+  if (pthread_cond_init(&(batcher->all_tx_left), NULL) != 0) {
     lock_cleanup(&(batcher->lock));
     return false;
   }
-  batcher->n_blocked = 0;
-  batcher->cur_epoch = 0;
-  batcher->n_in_epoch = 0;
-  batcher->n_remaining = 0;
+  batcher->n_blocked = 0; //obv
+  batcher->cur_epoch = 0; //start at epoch 0
+  batcher->n_in_epoch = 0; //init num of tx in epoch is 0
+  batcher->n_remaining = 0; //initial num tx in batcher is 0
   batcher->is_ro = malloc(sizeof(bool));
   if (batcher->is_ro == NULL) {
     return false;
@@ -30,23 +30,25 @@ bool enter_batcher(batcher_t *batcher) {
   } else {
     // block and wait for next epoch.
     batcher->n_blocked++;
-    pthread_cond_wait(&batcher->cond_var, &batcher->lock.mutex);
+    pthread_cond_wait(&batcher->all_tx_left, &batcher->lock.mutex);
   }
   lock_release(&batcher->lock);
   return true;
 }
 
 // Leave and wake up other threads if are last
-bool leave_batcher(region_t *region, tx_t tx) {
+//Like in project description
+bool leave_batcher(shared_t shared, tx_t tx) {
+  region_t* region = (region_t*)shared;
   batcher_t *batcher = &(region->batcher);
   lock_acquire(&batcher->lock);
   batcher->n_remaining--;
 
   // Last transaction is leaving
   if (batcher->n_remaining == 0) {
-    commit_transacations_in_epoch(region, tx);
+    commit_transcations_in_epoch(region, tx);
     prepare_batcher_for_next_epoch(batcher);
-    pthread_cond_broadcast(&batcher->cond_var);
+    pthread_cond_broadcast(&batcher->all_tx_left);
   }
   lock_release(&batcher->lock);
   return true;
@@ -56,7 +58,7 @@ void destroy_batcher(batcher_t *batcher) {
   lock_cleanup(&(batcher->lock));
   if (batcher->is_ro != NULL)
     free(batcher->is_ro);
-  pthread_cond_destroy(&(batcher->cond_var));
+  pthread_cond_destroy(&(batcher->all_tx_left));
 }
 
 void prepare_batcher_for_next_epoch(batcher_t *batcher) {
