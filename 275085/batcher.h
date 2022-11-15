@@ -12,9 +12,9 @@ typedef struct {
   int n_remaining;    // From project description: remaining threads in counter
   int n_blocked;      // number of blocked transacation threads
   int n_in_epoch;     // current number of transacations running in batcher
-  struct lock_t lock; // lock for batcher functions
-  pthread_cond_t all_tx_left; // conditional variable for waking waiting
-                              // threads(Like batcer from description)
+  struct lock_t lock; // lock for batcher functions also has a
+                      // conditional variable for waking waiting threads,
+                      // Like batcher from description has to do
   bool *is_ro; // Array to keep track which transacations are read-only, by
                // mapping their id <->index in array
 } batcher_t;

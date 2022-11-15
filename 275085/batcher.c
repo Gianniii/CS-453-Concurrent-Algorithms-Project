@@ -4,7 +4,7 @@ bool init_batcher(batcher_t *batcher) {
   if (!lock_init(&(batcher->lock))) {
     return false;
   }
-  if (pthread_cond_init(&(batcher->all_tx_left), NULL) != 0) {
+  if (pthread_cond_init(&(batcher->lock.all_tx_left_batcher), NULL) != 0) {
     lock_cleanup(&(batcher->lock));
     return false;
   }
@@ -30,7 +30,7 @@ bool enter_batcher(batcher_t *batcher) {
   } else {
     // block and wait for next epoch.
     batcher->n_blocked++;
-    pthread_cond_wait(&batcher->all_tx_left, &batcher->lock.mutex);
+    pthread_cond_wait(&batcher->lock.all_tx_left_batcher, &batcher->lock.mutex);
   }
   lock_release(&batcher->lock);
   return true;
@@ -48,7 +48,7 @@ bool leave_batcher(shared_t shared, tx_t tx) {
   if (batcher->n_remaining == 0) {
     commit_transcations_in_epoch(region, tx);
     prepare_batcher_for_next_epoch(batcher);
-    pthread_cond_broadcast(&batcher->all_tx_left);
+    pthread_cond_broadcast(&batcher->lock.all_tx_left_batcher);
   }
   lock_release(&batcher->lock);
   return true;

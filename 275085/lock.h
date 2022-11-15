@@ -9,7 +9,9 @@
  */
 struct lock_t {
   pthread_mutex_t mutex;
-  pthread_cond_t cv;
+  pthread_cond_t
+      all_tx_left_batcher; // only use the condition for the batcher so renamed
+                           // it to something that makes more sense
 };
 
 /** Initialize the given lock.

@@ -105,7 +105,7 @@ void tm_destroy(shared_t shared) {
 
   // free batcher
   batcher_t batcher = region->batcher;
-  pthread_cond_destroy(&(batcher.all_tx_left));
+  pthread_cond_destroy(&(batcher.lock.all_tx_left_batcher));
   lock_cleanup(&(batcher.lock));
   if (batcher.is_ro != NULL)
     free(batcher.is_ro);
