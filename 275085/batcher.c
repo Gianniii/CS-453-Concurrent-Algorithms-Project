@@ -12,8 +12,8 @@ bool init_batcher(batcher_t *batcher) {
   batcher->cur_epoch = 0;   // start at epoch 0
   batcher->n_in_epoch = 0;  // init num of tx in epoch is 0
   batcher->n_remaining = 0; // initial num tx in batcher is 0
-  batcher->is_ro = malloc(sizeof(bool));
-  if (batcher->is_ro == NULL) {
+  batcher->is_ro_flags = malloc(sizeof(bool));
+  if (batcher->is_ro_flags == NULL) {
     return false;
   }
   return true;
@@ -26,7 +26,7 @@ bool enter_batcher(batcher_t *batcher) {
   if (batcher->n_remaining == 0) {
     batcher->n_remaining = 1;
     batcher->n_in_epoch = 1;
-    // alloc is_ro for this first tx.
+    // alloc is_ro_flags for this first tx.
   } else {
     // block and wait for next epoch.
     batcher->n_blocked++;
@@ -60,7 +60,8 @@ void prepare_batcher_for_next_epoch(batcher_t *batcher) {
   batcher->n_in_epoch = batcher->n_blocked;
   // reallocate transactions array
   int size_to_alloc = batcher->n_blocked == 0 ? 1 : batcher->n_blocked;
-  batcher->is_ro = realloc(batcher->is_ro, sizeof(bool) * size_to_alloc);
+  batcher->is_ro_flags =
+      realloc(batcher->is_ro_flags, sizeof(bool) * size_to_alloc);
 
   batcher->cur_epoch++;
   batcher->n_blocked = 0;

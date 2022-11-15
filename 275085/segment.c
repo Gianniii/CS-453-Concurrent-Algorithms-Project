@@ -40,8 +40,9 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
 
   // allocate and init to false array of boolean flags indicating if a word has
   // been written in the epoch
-  segment->is_written_in_epoch = (bool *)calloc(segment->n_words, sizeof(bool));
-  if (!segment->is_written_in_epoch) {
+  segment->word_has_been_written_flag =
+      (bool *)calloc(segment->n_words, sizeof(bool));
+  if (!segment->word_has_been_written_flag) {
     free(segment->words_array_A);
     free(segment->words_array_B);
     free(segment->word_is_ro);
@@ -50,9 +51,9 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
   }
 
   // allocate and init array of locks for words
-  segment->word_locks = malloc(segment->n_words * sizeof(struct lock_t));
-  if (!segment->is_written_in_epoch) {
-    free(segment->is_written_in_epoch);
+  segment->word_lock = malloc(segment->n_words * sizeof(struct lock_t));
+  if (!segment->word_has_been_written_flag) {
+    free(segment->word_has_been_written_flag);
     free(segment->words_array_A);
     free(segment->words_array_B);
     free(segment->word_is_ro);
@@ -60,9 +61,9 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
     return false;
   }
   for (size_t i = 0; i < segment->n_words; i++) {
-    if (!lock_init(&(segment->word_locks[i]))) {
-      free(segment->word_locks);
-      free(segment->is_written_in_epoch);
+    if (!lock_init(&(segment->word_lock[i]))) {
+      free(segment->word_lock);
+      free(segment->word_has_been_written_flag);
       free(segment->words_array_A);
       free(segment->words_array_B);
       free(segment->word_is_ro);
