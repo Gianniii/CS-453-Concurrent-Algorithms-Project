@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Segment constants
 #define MAX_NUM_SEGMENTS 0x10000 // From project description
 #define NOT_FREE false
 #define FREE true

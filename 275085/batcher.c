@@ -24,9 +24,8 @@ bool enter_batcher(batcher_t *batcher) {
   lock_acquire(&batcher->lock);
   // if firs tx to enter batcher
   if (batcher->n_remaining == 0) {
-    batcher->n_remaining = 1;
     batcher->n_in_epoch = 1;
-    // alloc is_ro_flags for this first tx.
+    batcher->n_remaining = 1;
   } else {
     // block and wait for next epoch.
     batcher->n_blocked++;
@@ -42,13 +41,14 @@ bool leave_batcher(shared_t shared, tx_t tx) {
   region_t *region = (region_t *)shared;
   batcher_t *batcher = &(region->batcher);
   lock_acquire(&batcher->lock);
-  batcher->n_remaining--;
 
   // Last transaction is leaving
-  if (batcher->n_remaining == 0) {
+  if (batcher->n_remaining == 1) {
     commit_transcations_in_epoch(region, tx);
     prepare_batcher_for_next_epoch(batcher);
     pthread_cond_broadcast(&batcher->lock.all_tx_left_batcher);
+  } else {
+    batcher->n_remaining -= 1;
   }
   lock_release(&batcher->lock);
   return true;
