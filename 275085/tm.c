@@ -447,21 +447,19 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
   // go through all valid segments(not freed)
   for (int segment_index = 0; segment_index < region->n_segments;
        segment_index++) {
-    if (region->segment_is_free[segment_index] == NOT_FREE) {
-      segment = &region->segment[segment_index];
-      // free segments that were set to be freed by a transaction on this epoch
-      if (segment->deregistered != NONE) {
-        region->segment_is_free[segment_index] = FREE;
-      } else {
-        // commit the written words of this segment and reset segment vals
-        for (size_t i = 0; i < segment->n_words; i++) {
-          if (segment->word_has_been_written_flag[i] == true) {
-            segment->word_is_ro[i] = (segment->word_is_ro[i] + 1) % 2;
-          }
-          // set metadata for next epoch
-          segment->word_has_been_written_flag[i] = false;
-          segment->access_set[i] = NONE;
+    segment = &region->segment[segment_index];
+    // free segments that were set to be freed by a transaction on this epoch
+    if (segment->deregistered != NONE) {
+      region->segment_is_free[segment_index] = FREE;
+    } else {
+      // commit the written words of this segment and reset segment vals
+      for (size_t i = 0; i < segment->n_words; i++) {
+        if (segment->word_has_been_written_flag[i] == true) {
+          segment->word_is_ro[i] = (segment->word_is_ro[i] + 1) % 2;
         }
+        // set metadata for next epoch
+        segment->word_has_been_written_flag[i] = false;
+        segment->access_set[i] = NONE;
       }
     }
   }
