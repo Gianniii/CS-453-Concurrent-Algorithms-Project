@@ -41,8 +41,8 @@ shared_t tm_create(size_t size, size_t align) {
   region->seg_size = size;
   region->align = align;
   region->n_segments = 1;
-  region->segment = (segment_t *)malloc(N_INIT_SEGMENTS * sizeof(segment_t));
-  if (!region->segment) {
+  region->segments = (segment_t *)malloc(N_INIT_SEGMENTS * sizeof(segment_t));
+  if (!region->segments) {
     free(region);
     return invalid_shared;
   }
@@ -50,23 +50,23 @@ shared_t tm_create(size_t size, size_t align) {
   region->segment_is_free =
       (bool *)calloc(MAX_NUM_SEGMENTS, sizeof(bool)); // auto init all to false
   if (region->segment_is_free == NULL) {
-    free(region->segment);
+    free(region->segments);
     free(region);
     return invalid_shared;
   }
 
   if (!lock_init(&(region->global_lock))) {
     free(region->segment_is_free);
-    free(region->segment);
+    free(region->segments);
     free(region);
     return invalid_shared;
   }
 
   align = align < sizeof(void *) ? sizeof(void *) : align;
-  if (!init_segment(&region->segment[0], align, size)) {
+  if (!init_segment(&region->segments[0], align, size)) {
     lock_cleanup(&(region->global_lock));
     free(region->segment_is_free);
-    free(region->segment);
+    free(region->segments);
     free(region);
     return invalid_shared;
   }
@@ -74,7 +74,7 @@ shared_t tm_create(size_t size, size_t align) {
   if (!init_batcher(&region->batcher)) {
     lock_cleanup(&(region->global_lock));
     free(region->segment_is_free);
-    free(region->segment);
+    free(region->segments);
     free(region);
     return invalid_shared;
   }
@@ -90,7 +90,7 @@ void tm_destroy(shared_t shared) {
 
   // free segments
   for (int i = 0; i < region->n_segments; i++) {
-    segment_destroy(&(region->segment[i]));
+    segment_destroy(&(region->segments[i]));
   }
 
   pthread_cond_destroy(&(region->batcher.lock.all_tx_left_batcher));
@@ -98,7 +98,7 @@ void tm_destroy(shared_t shared) {
   free(region->batcher.is_ro_flags);
 
   // free share segment region
-  free(region->segment);
+  free(region->segments);
   free(region->segment_is_free);
 
   lock_cleanup(&(region->global_lock));
@@ -146,8 +146,8 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   int n_words = size / region->align;
   int segment_index = extract_seg_id_from_virt_addr(source);
   int source_start_index = extract_word_index_from_virt_addr(
-      source, region->segment[segment_index].align);
-  segment_t *seg = &region->segment[segment_index];
+      source, region->segments[segment_index].align);
+  segment_t *seg = &region->segments[segment_index];
 
   // like in project description
   void *target_word_addr =
@@ -191,9 +191,9 @@ void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
 bool allocate_more_segments(region_t *region) {
   // if index is beyond number of allocated segments then allocated another one
   if (region->n_segments >= N_INIT_SEGMENTS) {
-    region->segment = (segment_t *)realloc(
-        region->segment, sizeof(segment_t) * region->n_segments);
-    if (region->segment == NULL) { // check realloc is successfull
+    region->segments = (segment_t *)realloc(
+        region->segments, sizeof(segment_t) * region->n_segments);
+    if (region->segments == NULL) { // check realloc is successfull
       return false;
     }
   }
@@ -213,7 +213,7 @@ int add_segment(region_t *region) {
   // pointers at start but will have to remember to free all the pointers
   // within... so maybe not cool
   segment_t segment;
-  region->segment[idx] = segment; // copy segment
+  region->segments[idx] = segment; // copy segment
   // printf("goes here\n");
   return idx;
 }
@@ -270,9 +270,9 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
   int segment_index = extract_seg_id_from_virt_addr(target);
-  segment_t *segment = &region->segment[segment_index];
+  segment_t *segment = &region->segments[segment_index];
   int start_target_word_index = extract_word_index_from_virt_addr(
-      target, region->segment[segment_index].align);
+      target, region->segments[segment_index].align);
   int n_words = size / region->align;
   const void *word_source = (void *)source;
   int target_idx = start_target_word_index;
@@ -356,7 +356,7 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   }
 
   // intialize new segment with calculated index
-  if (!init_segment(&region->segment[index], region->align, size)) {
+  if (!init_segment(&region->segments[index], region->align, size)) {
     return nomem_alloc;
   }
   // no longer free index
@@ -382,13 +382,13 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
   // set to be deregistered like written in project description
   lock_acquire(&(region->global_lock)); // TODO more finegrain locking or atomic
                                         // variables in segment
-  if (region->segment[segment_index].deregistered ==
+  if (region->segments[segment_index].deregistered ==
       NONE) { // if segment is not deregisterd then deregister it
-    region->segment[segment_index].deregistered = tx;
+    region->segments[segment_index].deregistered = tx;
   } else {
     lock_release(&(region->global_lock));
     // if has already been deregistered then abort the transacation
-    if (region->segment[segment_index].deregistered != tx) {
+    if (region->segments[segment_index].deregistered != tx) {
       return (abort_transaction_tx(region, tx));
     }
   }
@@ -399,13 +399,10 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
 // always returns false
 bool abort_transaction_tx(shared_t shared, tx_t tx) {
   region_t *region = (region_t *)shared;
-  // Iterate over all non free'd segments
-  int max_segment_index = region->n_segments;
   segment_t *segment;
-  for (int segment_index = 0; segment_index < max_segment_index;
-       segment_index++) {
-    if (region->segment_is_free[segment_index] == NOT_FREE) {
-      segment = &region->segment[segment_index];
+  for (int i = 0; i < region->n_segments; i++) {
+    if (region->segment_is_free[i] == NOT_FREE) {
+      segment = &region->segments[i];
 
       // unset segments on which tx has called tm_free previously (tx_tmp is
       // needed because of the atomic_compare_exchange, which perform if then
@@ -436,30 +433,25 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
   return false;
 }
 
-/** [thread-safe] commit operations for a given transaction
- * @param region Shared memory region
- * @param tx Current transaction
- **/
 // Commit is only called once last transacation of epoch leaves the batcher
 void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
   region_t *region = (region_t *)shared;
   segment_t *segment;
   // go through all valid segments(not freed)
-  for (int segment_index = 0; segment_index < region->n_segments;
-       segment_index++) {
-    segment = &region->segment[segment_index];
+  for (int i = 0; i < region->n_segments; i++) {
+    segment = &region->segments[i];
     // free segments that were set to be freed by a transaction on this epoch
     if (segment->deregistered != NONE) {
-      region->segment_is_free[segment_index] = FREE;
+      region->segment_is_free[i] = FREE;
     } else {
       // commit the written words of this segment and reset segment vals
-      for (size_t i = 0; i < segment->n_words; i++) {
-        if (segment->word_has_been_written_flag[i] == true) {
-          segment->word_is_ro[i] = (segment->word_is_ro[i] + 1) % 2;
+      for (size_t j = 0; j < segment->n_words; j++) {
+        if (segment->word_has_been_written_flag[j] == true) {
+          segment->word_is_ro[j] = (segment->word_is_ro[j] + 1) % 2;
         }
         // set metadata for next epoch
-        segment->word_has_been_written_flag[i] = false;
-        segment->access_set[i] = NONE;
+        segment->word_has_been_written_flag[j] = false;
+        segment->access_set[j] = NONE;
       }
     }
   }

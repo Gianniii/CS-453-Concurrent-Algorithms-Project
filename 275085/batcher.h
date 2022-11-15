@@ -23,7 +23,7 @@ typedef struct {
 typedef struct region_s {
   void *start; // start of shared memory region
   atomic_int n_segments;
-  segment_t *segment;    // Array of segments
+  segment_t *segments;   // Array of segments
   bool *segment_is_free; // Array of freed segment flags
   struct lock_t global_lock;
   // struct lock_t stack_lock; //for stack
