@@ -88,7 +88,7 @@ shared_t tm_create(size_t size, size_t align) {
 void tm_destroy(shared_t shared) {
   region_t *region = (region_t *)shared;
 
-  // free segments
+  // destroy segments
   for (int i = 0; i < region->n_segments; i++) {
     segment_destroy(&(region->segments[i]));
   }
@@ -97,7 +97,7 @@ void tm_destroy(shared_t shared) {
   lock_cleanup(&(region->batcher.lock));
   free(region->batcher.is_ro_flags);
 
-  // free share segment region
+  // destory shared segment region
   free(region->segments);
   free(region->segment_is_free);
 
@@ -118,9 +118,8 @@ size_t tm_align(shared_t shared) { return ((region_t *)shared)->align; }
  * @return Opaque transaction ID, 'invalid_tx' on failure
  **/
 tx_t tm_begin(shared_t shared, bool is_ro) {
-  region_t *region = (region_t *)shared;
-  tx_t id = enter_batcher(&(region->batcher));
-  region->batcher.is_ro_flags[id] = is_ro;
+  tx_t id = enter_batcher(&(((region_t *)shared)->batcher));
+  ((region_t *)shared)->batcher.is_ro_flags[id] = is_ro;
   return id;
 }
 
@@ -144,10 +143,10 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // get necessary data for the loop
   int n_words = size / region->align;
-  int segment_index = extract_seg_id_from_virt_addr(source);
-  int source_start_index = extract_word_index_from_virt_addr(
-      source, region->segments[segment_index].align);
-  segment_t *seg = &region->segments[segment_index];
+  int seg_id = extract_seg_id_from_virt_addr(source);
+  segment_t *seg = &region->segments[seg_id];
+  int source_start_index =
+      extract_word_index_from_virt_addr(source, seg->align);
 
   // like in project description
   void *target_word_addr =
@@ -269,10 +268,10 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
 bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
-  int segment_index = extract_seg_id_from_virt_addr(target);
-  segment_t *segment = &region->segments[segment_index];
-  int start_target_word_index = extract_word_index_from_virt_addr(
-      target, region->segments[segment_index].align);
+  int seg_id = extract_seg_id_from_virt_addr(target);
+  segment_t *segment = &region->segments[seg_id];
+  int start_target_word_index =
+      extract_word_index_from_virt_addr(target, region->segments[seg_id].align);
   int n_words = size / region->align;
   const void *word_source = (void *)source;
   int target_idx = start_target_word_index;
