@@ -29,9 +29,9 @@
 #include "tm.h"
 
 #define N_INIT_SEGMENTS 128 // To avoid constant reallocation
+
 // init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
-  // allocate shared memory region
   region_t *region = (region_t *)malloc(sizeof(region_t));
   if (!region) {
     return invalid_shared;
@@ -64,7 +64,7 @@ shared_t tm_create(size_t size, size_t align) {
   }
 
   align = align < sizeof(void *) ? sizeof(void *) : align;
-  if (!segment_init(&region->segment[0], size, align)) {
+  if (!init_segment(&region->segment[0], align, size)) {
     lock_cleanup(&(region->global_lock));
     free(region->segment_is_free);
     free(region->segment);
@@ -89,26 +89,16 @@ shared_t tm_create(size_t size, size_t align) {
 void tm_destroy(shared_t shared) {
   region_t *region = (region_t *)shared;
 
-  // free segment and related
+  // free segments
   for (int i = 0; i < region->n_segments; i++) {
-    segment_t seg = region->segment[i];
-    free(seg.words_array_A);
-    free(seg.words_array_B);
-    free(seg.word_is_ro);
-    free(seg.access_set);
-    free(seg.word_has_been_written_flag);
-    for (size_t i = 0; i < seg.n_words; i++) {
-      lock_cleanup(&(seg.word_lock[i]));
-    }
-    free(seg.word_lock);
+    segment_destroy(&(region->segment[i]));
   }
 
-  // free batcher
-  batcher_t batcher = region->batcher;
-  pthread_cond_destroy(&(batcher.lock.all_tx_left_batcher));
-  lock_cleanup(&(batcher.lock));
-  if (batcher.is_ro_flags != NULL)
-    free(batcher.is_ro_flags);
+  pthread_cond_destroy(&(region->batcher.lock.all_tx_left_batcher));
+  lock_cleanup(&(region->batcher.lock));
+  free(region->batcher.is_ro_flags);
+
+  // free share segment region
   free(region->segment);
   free(region->segment_is_free);
 
@@ -378,7 +368,7 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   }
 
   // intialize new segment with calculated index
-  if (!segment_init(&region->segment[index], size, region->align)) {
+  if (!init_segment(&region->segment[index], region->align, size)) {
     return nomem_alloc;
   }
   // no longer free index

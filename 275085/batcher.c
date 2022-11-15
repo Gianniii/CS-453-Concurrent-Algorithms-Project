@@ -58,11 +58,11 @@ void prepare_batcher_for_next_epoch(batcher_t *batcher) {
   // prepare batcher to unblock waiting transacations -------
   batcher->n_remaining = batcher->n_blocked;
   batcher->n_in_epoch = batcher->n_blocked;
-  // reallocate transactions array
+
   int size_to_alloc = batcher->n_blocked == 0 ? 1 : batcher->n_blocked;
   batcher->is_ro_flags =
       realloc(batcher->is_ro_flags, sizeof(bool) * size_to_alloc);
 
   batcher->cur_epoch++;
-  batcher->n_blocked = 0;
+  batcher->n_blocked = 0; // reset
 }

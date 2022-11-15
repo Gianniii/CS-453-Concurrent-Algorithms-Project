@@ -1,7 +1,6 @@
 #include "segment.h"
 
-// init segment
-bool segment_init(segment_t *segment, size_t size, size_t align) {
+bool init_segment(segment_t *segment, size_t align, size_t size) {
   segment->align = align;
   segment->n_words = size / (align);
   segment->deregistered = NONE;
@@ -23,7 +22,6 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
     return false;
   }
 
-  // allocate access set and init to -1
   segment->access_set = malloc(segment->n_words * sizeof(tx_t));
   if (!segment->access_set) {
     free(segment->words_array_A);
@@ -35,11 +33,7 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
   for (size_t i = 0; i < segment->n_words; i++) {
     segment->access_set[i] = NONE;
   }
-  // memset(segment->access_set, INVALID_TX,
-  // ((int)segment->n_words)*sizeof(tx_t));
 
-  // allocate and init to false array of boolean flags indicating if a word has
-  // been written in the epoch
   segment->word_has_been_written_flag =
       (bool *)calloc(segment->n_words, sizeof(bool));
   if (!segment->word_has_been_written_flag) {
@@ -50,7 +44,6 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
     return false;
   }
 
-  // allocate and init array of locks for words
   segment->word_lock = malloc(segment->n_words * sizeof(struct lock_t));
   if (!segment->word_has_been_written_flag) {
     free(segment->word_has_been_written_flag);
@@ -75,8 +68,8 @@ bool segment_init(segment_t *segment, size_t size, size_t align) {
   return true;
 }
 
-// encoding of addr (segment_id + 1) << shift_constant + word offset
-// create get virtual address from a segment id
+// address format (segment_id + 1) << shift_constant + word offset
+// get virtual address from a segment id
 void *get_virt_addr(int seg_id) {
   return (void *)((intptr_t)((++seg_id) << 24));
 }
@@ -85,10 +78,22 @@ int extract_word_index_from_virt_addr(void const *addr, size_t align) {
   intptr_t tmp = (intptr_t)addr >> 24;
   intptr_t shifted_segment_id = tmp << 24;
   int word_offset = (intptr_t)addr - shifted_segment_id;
-  return word_offset / align; // word_offset/align gives word_index
+  return word_offset / align; // return id of word
 }
 
 int extract_seg_id_from_virt_addr(void const *addr) {
   intptr_t num_s = (intptr_t)addr >> 24;
   return num_s - 1;
+}
+
+void segment_destroy(segment_t *s) {
+  for (size_t i = 0; i < s->n_words; i++) {
+    lock_cleanup(&(s->word_lock[i]));
+  }
+  free(s->word_lock);
+  free(s->word_has_been_written_flag);
+  free(s->word_is_ro);
+  free(s->access_set);
+  free(s->words_array_A);
+  free(s->words_array_B);
 }
