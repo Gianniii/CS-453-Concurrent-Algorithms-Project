@@ -125,9 +125,7 @@ tx_t tm_begin(shared_t shared, bool is_ro) {
 }
 
 bool tm_end(shared_t shared, tx_t tx) {
-  return leave_batcher(
-      (region_t *)shared,
-      tx); // will never need to return false because we we notify when abort
+  return leave_batcher((region_t *)shared, tx);
 }
 
 /** [thread-safe] Read operation in the given transaction, source in the shared
@@ -298,7 +296,6 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
   if (segment->word_has_been_written_flag[index] == true) {
     // release word lock to allow concurrent write
     lock_release(&segment->word_lock[index]);
-
     // if tx in the access set
     if (segment->access_set[index] == tx) {
       write_to_correct_copy(index, source, segment);

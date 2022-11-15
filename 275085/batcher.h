@@ -7,7 +7,7 @@
 #include <stdlib.h>
 // Region and batcher(i.e segment management structs)
 typedef struct {
-  atomic_int tx_id_generator;
+  int tx_id_generator;
   int cur_epoch; // From description: keep track of the current epoch through a
                  // counter
   int n_remaining;    // From project description: remaining threads in counter
