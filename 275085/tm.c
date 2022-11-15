@@ -41,7 +41,6 @@ shared_t tm_create(size_t size, size_t align) {
   region->seg_size = size;
   region->align = align;
   region->n_segments = 1;
-  region->tx_counter = 1;
   region->segment = (segment_t *)malloc(N_INIT_SEGMENTS * sizeof(segment_t));
   if (!region->segment) {
     free(region);
@@ -119,17 +118,9 @@ size_t tm_align(shared_t shared) { return ((region_t *)shared)->align; }
  * @return Opaque transaction ID, 'invalid_tx' on failure
  **/
 tx_t tm_begin(shared_t shared, bool is_ro) {
-  // TODO LOCK with a tm_begin_lock or something
   region_t *region = (region_t *)shared;
-  // enter batcher
-  if (!enter_batcher(&(region->batcher))) {
-    return invalid_tx;
-  }
-  // get index of transacation
-  tx_t id = (tx_t)((atomic_fetch_add(&region->tx_counter, 1)) %
-                   region->batcher.n_in_epoch);
-  region->batcher.is_ro_flags[id] =
-      is_ro; // no need for atomic since this is unique to each transcation
+  tx_t id = enter_batcher(&(region->batcher));
+  region->batcher.is_ro_flags[id] = is_ro;
   return id;
 }
 

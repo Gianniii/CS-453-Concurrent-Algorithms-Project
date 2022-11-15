@@ -8,6 +8,7 @@ bool init_batcher(batcher_t *batcher) {
     lock_cleanup(&(batcher->lock));
     return false;
   }
+  batcher->tx_id_generator = 0;
   batcher->n_blocked = 0;   // obv
   batcher->cur_epoch = 0;   // start at epoch 0
   batcher->n_in_epoch = 0;  // init num of tx in epoch is 0
@@ -20,7 +21,7 @@ bool init_batcher(batcher_t *batcher) {
 }
 
 // Behavior from project description
-bool enter_batcher(batcher_t *batcher) {
+tx_t enter_batcher(batcher_t *batcher) {
   lock_acquire(&batcher->lock);
   // if firs tx to enter batcher
   if (batcher->n_remaining == 0) {
@@ -31,8 +32,10 @@ bool enter_batcher(batcher_t *batcher) {
     batcher->n_blocked++;
     pthread_cond_wait(&batcher->lock.all_tx_left_batcher, &batcher->lock.mutex);
   }
+  tx_t id = batcher->tx_id_generator;
+  batcher->tx_id_generator++;
   lock_release(&batcher->lock);
-  return true;
+  return id;
 }
 
 // Leave and wake up other threads if are last
@@ -58,6 +61,7 @@ void prepare_batcher_for_next_epoch(batcher_t *batcher) {
   // prepare batcher to unblock waiting transacations -------
   batcher->n_remaining = batcher->n_blocked;
   batcher->n_in_epoch = batcher->n_blocked;
+  batcher->tx_id_generator = 0;
 
   int size_to_alloc = batcher->n_blocked == 0 ? 1 : batcher->n_blocked;
   batcher->is_ro_flags =
