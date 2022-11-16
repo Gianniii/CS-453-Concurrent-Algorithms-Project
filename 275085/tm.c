@@ -195,12 +195,6 @@ int add_segment(region_t *region) {
   if (!allocate_more_segments(region)) {
     return -1;
   }
-  // add segment structure to region
-  // TODO Make region contains list of segment pointers! so can allocated all
-  // pointers at start but will have to remember to free all the pointers
-  // within... so maybe not cool
-  segment_t segment;
-  region->segments[idx] = segment; // copy segment
   // printf("goes here\n");
   return idx;
 }
