@@ -5,7 +5,7 @@
 #define MAX_STACK_SIZE 0x10000 // max number of words
 
 typedef struct {
-  int *vals;
+  int vals[MAX_STACK_SIZE];
   int top;
 } stack_t;
 
