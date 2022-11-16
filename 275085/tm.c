@@ -379,12 +379,6 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
   segment_t *segment;
   for (int i = 0; i < region->n_segments; i++) {
     segment = &region->segments[i];
-    lock_acquire(&(region->global_lock)); // TODO more finegrain locking or
-                                          // atomic variables in segment
-    if (segment->deregistered == tx) {    // re-register the segment
-      segment->deregistered = NONE;
-    }
-    lock_release(&(region->global_lock));
     // Check words this tx accessed and wrote to and and make those words
     // available again
     for (size_t i = 0; i < segment->n_words;
@@ -399,6 +393,11 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
         lock_release(&segment->word_lock[i]);
       }
     }
+    lock_acquire(&region->global_lock);
+    if (segment->deregistered == tx) {    
+      segment->deregistered = NONE;
+    }
+    lock_release(&region->global_lock);
   }
   leave_batcher(region, tx);
   return false;
