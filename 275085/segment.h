@@ -14,8 +14,10 @@
 #define NOT_FREE false
 #define FREE true
 static const tx_t NONE = 0xFFFFF;
+
 /**typedef struct {
   int word_is_ro;
+  tx_t access_set;
   bool word_has_been_written_flag
 } control_t;*/
 // or contro_t // control structure for each word!!!! // idea wouldnt need
