@@ -39,8 +39,6 @@ typedef struct {
   int align;         // size of a word
   tx_t deregistered; // to be freed in tm_free(equals NONE if not set else it
                      // equals the tx that deregistered it)
-  // stack_t modified_word_indexes       //Potential optimization to avoid
-  // iterating over all words and checking if they have been written in epoch
 } segment_t;
 
 bool init_segment(segment_t *seg, size_t size, size_t align);
