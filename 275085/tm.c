@@ -76,7 +76,6 @@ void tm_destroy(shared_t shared) {
 
   pthread_cond_destroy(&(region->batcher.lock.all_tx_left_batcher));
   lock_cleanup(&(region->batcher.lock));
-  free(region->batcher.is_ro_flags);
 
   // destory shared segment region
   free(region->segments);

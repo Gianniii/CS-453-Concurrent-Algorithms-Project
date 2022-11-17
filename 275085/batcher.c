@@ -13,10 +13,6 @@ bool init_batcher(batcher_t *batcher) {
   batcher->cur_epoch = 0;   // start at epoch 0
   batcher->n_in_epoch = 0;  // init num of tx in epoch is 0
   batcher->n_remaining = 0; // initial num tx in batcher is 0
-  batcher->is_ro_flags = malloc(sizeof(bool));
-  if (batcher->is_ro_flags == NULL) {
-    return false;
-  }
   return true;
 }
 
@@ -62,11 +58,6 @@ void prepare_batcher_for_next_epoch(batcher_t *batcher) {
   batcher->n_remaining = batcher->n_blocked;
   batcher->n_in_epoch = batcher->n_blocked;
   batcher->tx_id_generator = 0;
-
-  int size_to_alloc = batcher->n_blocked == 0 ? 1 : batcher->n_blocked;
-  batcher->is_ro_flags =
-      realloc(batcher->is_ro_flags, sizeof(bool) * size_to_alloc);
-
   batcher->cur_epoch++;
   batcher->n_blocked = 0; // reset
 }

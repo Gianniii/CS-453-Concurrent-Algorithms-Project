@@ -16,7 +16,7 @@ typedef struct {
   struct lock_t lock; // lock for batcher functions also has a
                       // conditional variable for waking waiting threads,
                       // Like batcher from description has to do
-  bool *is_ro_flags;  // Array to keep track which transacations are read-only,
+  bool is_ro_flags[MAX_NUM_SEGMENTS];  // Array to keep track which transacations are read-only,
                       // by mapping their id <->index in array
 } batcher_t;
 
