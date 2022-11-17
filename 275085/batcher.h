@@ -22,7 +22,7 @@ typedef struct region_s {
   void *start; // start of shared memory region
   atomic_int n_segments;
   segment_t *segments;   // Array of segments
-  struct lock_t global_lock;
+  struct lock_t global_lock; //only used partly tm_free/alloc and abort
   // struct lock_t stack_lock; //for stack
   batcher_t batcher;
   size_t align;
