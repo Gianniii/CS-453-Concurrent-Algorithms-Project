@@ -53,15 +53,7 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  align = align < sizeof(void *) ? sizeof(void *) : align;
-  if (!init_segment(&region->segments[0], align, size)) {
-    lock_cleanup(&(region->global_lock));
-    free(region->segments);
-    free(region);
-    return invalid_shared;
-  }
-
-  if (!init_batcher(&region->batcher)) {
+  if (!init_batcher(&region->batcher) | !init_segment(&region->segments[0], align, size)) {
     lock_cleanup(&(region->global_lock));
     free(region->segments);
     free(region);
