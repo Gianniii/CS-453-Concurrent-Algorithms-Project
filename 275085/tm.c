@@ -98,7 +98,7 @@ size_t tm_align(shared_t shared) { return ((region_t *)shared)->align; }
  **/
 tx_t tm_begin(shared_t shared, bool is_ro) {
   tx_t id = enter_batcher(&(((region_t *)shared)->batcher));
-  ((region_t *)shared)->batcher.is_ro_flags[id] = is_ro;
+  ((region_t *)shared)->is_ro_flags[id] = is_ro;
   return id;
 }
 
@@ -132,7 +132,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
       target; // target location to read word(like in description)
   int source_word_idx = source_start_index;
   while (source_word_idx < source_start_index + n_words) {
-    if (read_word(seg, tx, region->batcher.is_ro_flags[tx], source_word_idx,
+    if (read_word(seg, tx, region->is_ro_flags[tx], source_word_idx,
                   target_word_addr) == abort_alloc) {
       return (abort_transaction_tx(region, tx));
     }

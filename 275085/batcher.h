@@ -16,8 +16,6 @@ typedef struct {
   struct lock_t lock; // lock for batcher functions also has a
                       // conditional variable for waking waiting threads,
                       // Like batcher from description has to do
-  bool is_ro_flags[MAX_NUM_SEGMENTS];  // Array to keep track which transacations are read-only,
-                      // by mapping their id <->index in array
 } batcher_t;
 
 typedef struct region_s {
@@ -29,6 +27,8 @@ typedef struct region_s {
   batcher_t batcher;
   size_t align;
   size_t seg_size; // just for tm_size
+  bool is_ro_flags[MAX_NUM_SEGMENTS];  // Array to keep track which transacations are read-only,
+                    // by mapping their id <->index in array
   stack_t free_seg_indices; //store indices of freed segment for reuse
 } region_t;
 
