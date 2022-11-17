@@ -54,10 +54,9 @@ bool leave_batcher(shared_t shared, tx_t tx) {
 }
 
 void prepare_batcher_for_next_epoch(batcher_t *batcher) {
-  // prepare batcher to unblock waiting transacations -------
   batcher->n_remaining = batcher->n_blocked;
   batcher->n_in_epoch = batcher->n_blocked;
   batcher->tx_id_generator = 0;
   batcher->cur_epoch++;
-  batcher->n_blocked = 0; // reset
+  batcher->n_blocked = 0;
 }
