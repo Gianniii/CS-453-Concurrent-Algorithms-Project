@@ -180,12 +180,16 @@ bool allocate_more_segments(region_t *region) {
 }
 
 // Care: Segment must be locked during this operation
-int add_segment(region_t *region) {
+int add_segment(region_t *region, size_t size) {
   int idx = region->n_segments;
   region->n_segments++;
   // might have to allocate more segments to accomodate this extra segment
   if (!allocate_more_segments(region)) {
     return -1;
+  }
+   // intialize new segment with calculated index
+  if (!init_segment(&region->segments[idx], region->align, size)) {
+    return nomem_alloc;
   }
   // printf("goes here\n");
   return idx;
@@ -313,20 +317,20 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   // printf("%d", region->n_segments);
   lock_acquire(&(region->global_lock));
   // check if can reuse one of the already allocated segments
-  int index = pop(&(region->free_seg_indices));
-  if (index == -1) { // cannot reuse already allocated segment
-    index = add_segment(region);
-    if (index == -1) {
+  int segment_index = pop(&(region->free_seg_indices));
+  if (segment_index == -1) { // cannot reuse already allocated segment
+    segment_index = add_segment(region, size);
+    if (segment_index == -1) {
       return nomem_alloc;
     }
-  }
-  // intialize new segment with calculated index
-  if (!init_segment(&region->segments[index], region->align, size)) {
+  } else {
+     // intialize new segment with calculated index
+    if (!init_segment(&region->segments[segment_index], region->align, size)) {
     return nomem_alloc;
+    }
   }
-
   // set target to virtual address of the segment
-  *target = get_virt_addr(index);
+  *target = get_virt_addr(segment_index);
   lock_release(&(region->global_lock));
   return success_alloc;
 }
