@@ -24,7 +24,7 @@ typedef struct {
 
 typedef struct {
   control_t* control;       //Control structure like in project description
-  struct lock_t *word_lock; // used because to lazy to use atomic variables
+  struct lock_t *control_lock; // used because to lazy to use atomic variables
   void *words_array_A; // Like in Description: first copy from description
   void *words_array_B; // Like in Description: second copy from description
   size_t n_words;

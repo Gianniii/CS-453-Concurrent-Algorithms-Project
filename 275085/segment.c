@@ -26,17 +26,17 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     segment->control[i].access_set = NONE;
   }
 
-  segment->word_lock = malloc(segment->n_words * sizeof(struct lock_t));
-  if (!segment->word_lock) {
+  segment->control_lock = malloc(segment->n_words * sizeof(struct lock_t));
+  if (!segment->control_lock) {
     free(segment->control);
     free(segment->words_array_A);
     free(segment->words_array_B);
     return false;
   }
   for (size_t i = 0; i < segment->n_words; i++) {
-    if (!lock_init(&(segment->word_lock[i]))) {
+    if (!lock_init(&(segment->control_lock[i]))) {
       free(segment->control);
-      free(segment->word_lock);
+      free(segment->control_lock);
       free(segment->words_array_A);
       free(segment->words_array_B);
       return false;
@@ -66,9 +66,9 @@ int extract_seg_id_from_virt_addr(void const *addr) {
 
 void segment_destroy(segment_t *s) {
   for (size_t i = 0; i < s->n_words; i++) {
-    lock_cleanup(&(s->word_lock[i]));
+    lock_cleanup(&(s->control_lock[i]));
   }
-  free(s->word_lock);
+  free(s->control_lock);
   free(s->control);
   free(s->words_array_A);
   free(s->words_array_B);
