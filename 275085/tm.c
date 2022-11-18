@@ -77,10 +77,8 @@ void tm_destroy(shared_t shared) {
 
   pthread_cond_destroy(&(region->batcher.lock.all_tx_left_batcher));
   lock_cleanup(&(region->batcher.lock));
-
   // destory shared segment region
   free(region->segments);
-
   lock_cleanup(&(region->global_lock));
 
   free(region);
@@ -172,7 +170,7 @@ bool allocate_more_segments(region_t *region) {
   if (region->n_segments >= N_INIT_SEGMENTS) {
     region->segments = (segment_t *)realloc(
         region->segments, sizeof(segment_t) * region->n_segments);
-    if (region->segments == NULL) { // check realloc is successfull
+    if (region->segments == NULL) {
       return false;
     }
   }
@@ -266,14 +264,11 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
 
 // Exactly like Project description
 alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
-  // acquire word lock
   lock_acquire(&segment->control_lock[index]);
 
-  // if word has been written before
   control_t *control = &segment->control[index];
   if (control->word_has_been_written == true) {
-    // release word lock to allow concurrent write
-    lock_release(&segment->control_lock[index]);
+    lock_release(&segment->control_lock[index]); // allow concurrent write
     // if tx in the access set
     if (control->access_set == tx) {
       write_to_correct_copy(index, source, segment);
