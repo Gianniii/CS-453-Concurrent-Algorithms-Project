@@ -270,11 +270,12 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
   lock_acquire(&segment->control_lock[index]);
 
   // if word has been written before
-  if (segment->control[index].word_has_been_written == true) {
+  control_t * control = segment->control[index];
+  if (control->word_has_been_written == true) {
     // release word lock to allow concurrent write
     lock_release(&segment->control_lock[index]);
     // if tx in the access set
-    if (segment->control[index].access_set == tx) {
+    if (control->access_set == tx) {
       write_to_correct_copy(index, source, segment);
       return success_alloc;
     } else {
@@ -282,14 +283,14 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
     }
   } else { // abort if word has already been accessed by another tx
     // if one other tx in access set
-    if (segment->control[index].access_set != NONE &&
-        segment->control[index].access_set != tx) {
+    if (control->access_set != NONE &&
+        control->access_set != tx) {
       lock_release(&segment->control_lock[index]);
       return abort_alloc;
     } else { // CASE: first to access and write to word. So update
              // datastructures and release lock to allow concurent writes
-      segment->control[index].access_set = tx;
-      segment->control[index].word_has_been_written =
+      control->access_set = tx;
+      control->word_has_been_written =
           true;                                 // set is_written flag to true;
       lock_release(&segment->control_lock[index]); // allow concurrent writes
 
