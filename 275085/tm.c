@@ -407,7 +407,7 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
       // commit the written words of this segment and reset segment vals
       for (size_t j = 0; j < segment->n_words; j++) {
         if (segment->control[j].word_has_been_written == true) {
-          segment->control[j].word_is_ro = segment->control[j].word_is_ro == true? false: true;
+          segment->control[j].word_is_ro = !segment->control[j].word_is_ro;
         }
         // set metadata for next epoch
         segment->control[j].word_has_been_written = false;
