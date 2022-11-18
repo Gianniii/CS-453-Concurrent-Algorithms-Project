@@ -36,7 +36,6 @@ typedef struct {
   bool *word_has_been_written_flag; // Like in project descrition : Array of
                                     // boolean to flag if the word has been
                                     // written
-  int *word_is_ro;   // Like in Description: Array of flags for read-only copy
   int align;         // size of a word
   tx_t deregistered; // to be freed in tm_free(equals NONE if not set else it
                      // equals the tx that deregistered it)

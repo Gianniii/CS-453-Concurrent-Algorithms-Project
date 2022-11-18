@@ -5,11 +5,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
   segment->n_words = size / (align);
   segment->deregistered = NONE;
 
-  segment->word_is_ro = calloc(segment->n_words, sizeof(int));
-  if (!segment->word_is_ro) {
-    return false;
-  }
-
   segment->words_array_A = calloc(segment->n_words, align);
   if (!segment->words_array_A) {
     return false;
@@ -36,7 +31,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     free(segment->access_set);
     free(segment->words_array_A);
     free(segment->words_array_B);
-    free(segment->word_is_ro);
     return false;
   }
 
@@ -46,7 +40,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     free(segment->words_array_A);
     free(segment->control);
     free(segment->words_array_B);
-    free(segment->word_is_ro);
     free(segment->access_set);
     return false;
   }
@@ -57,7 +50,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     free(segment->word_has_been_written_flag);
     free(segment->words_array_A);
     free(segment->words_array_B);
-    free(segment->word_is_ro);
     free(segment->access_set);
     return false;
   }
@@ -68,7 +60,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
       free(segment->word_has_been_written_flag);
       free(segment->words_array_A);
       free(segment->words_array_B);
-      free(segment->word_is_ro);
       free(segment->access_set);
       return false;
     }
@@ -101,7 +92,6 @@ void segment_destroy(segment_t *s) {
   }
   free(s->word_lock);
   free(s->word_has_been_written_flag);
-  free(s->word_is_ro);
   free(s->access_set);
   free(s->control);
   free(s->words_array_A);
