@@ -17,7 +17,8 @@ static const tx_t NONE = 0xFFFFF;
 
 typedef struct {
   int word_is_ro; //Like in description: Flag indicating which word is read only
-  //tx_t access_set;
+  tx_t access_set; // Like in Description: shows tx which have
+                    // accessed the word, first to access will own it for it for the epoch
   //bool word_has_been_written_flag
 } control_t;
 // or contro_t // control structure for each word!!!! // idea wouldnt need
@@ -27,9 +28,6 @@ typedef struct {
 typedef struct {
   control_t* control;       //Control structure like in project description
   struct lock_t *word_lock; // used because to lazy to use atomic variables
-  tx_t *access_set; // Like in Description: Array of read-write tx which have
-                    // accessed the word (the first to access the word(read or
-                    // write) will own it for the epoch)
   void *words_array_A; // Like in Description: first copy from description
   void *words_array_B; // Like in Description: second copy from description
   size_t n_words;
