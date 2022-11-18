@@ -53,7 +53,8 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
 
-  if (!init_batcher(&region->batcher) | !init_segment(&region->segments[0], align, size)) {
+  if (!init_batcher(&region->batcher) |
+      !init_segment(&region->segments[0], align, size)) {
     lock_cleanup(&(region->global_lock));
     free(region->segments);
     free(region);
@@ -186,7 +187,7 @@ int add_segment(region_t *region, size_t size) {
   if (!allocate_more_segments(region)) {
     return -1;
   }
-   // intialize new segment with calculated index
+  // intialize new segment with calculated index
   if (!init_segment(&region->segments[idx], region->align, size)) {
     return nomem_alloc;
   }
@@ -205,7 +206,7 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
   } else { // r_w transacation
     lock_acquire(&segment->control_lock[index]);
     // if word not written, can read the r_o copy
-    control_t* control = &segment->control[index];
+    control_t *control = &segment->control[index];
     if (control->word_has_been_written == false) {
       // if first access add myself to access_set
       if (control->access_set == NONE) {
@@ -219,8 +220,7 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
 
     // if word written in current epoch by "this" transcation then can read,
     // else abort
-    if (control->word_has_been_written == true &&
-        control->access_set == tx) {
+    if (control->word_has_been_written == true && control->access_set == tx) {
       lock_release(
           &segment->control_lock[index]); // allow parallel reads on same word
       // read the writable copy
@@ -270,7 +270,7 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
   lock_acquire(&segment->control_lock[index]);
 
   // if word has been written before
-  control_t * control = &segment->control[index];
+  control_t *control = &segment->control[index];
   if (control->word_has_been_written == true) {
     // release word lock to allow concurrent write
     lock_release(&segment->control_lock[index]);
@@ -283,15 +283,13 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
     }
   } else { // abort if word has already been accessed by another tx
     // if one other tx in access set
-    if (control->access_set != NONE &&
-        control->access_set != tx) {
+    if (control->access_set != NONE && control->access_set != tx) {
       lock_release(&segment->control_lock[index]);
       return abort_alloc;
     } else { // CASE: first to access and write to word. So update
              // datastructures and release lock to allow concurent writes
       control->access_set = tx;
-      control->word_has_been_written =
-          true;                                 // set is_written flag to true;
+      control->word_has_been_written = true; // set is_written flag to true;
       lock_release(&segment->control_lock[index]); // allow concurrent writes
 
       write_to_correct_copy(index, source, segment);
@@ -317,7 +315,7 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   // check if there is a shared index for segment
   // printf("%d", region->n_segments);
   lock_acquire(&(region->global_lock));
-  // check if can reuse one of the already allocated segments
+  // find a free index or allocate new one
   int segment_index = pop(&(region->free_seg_indices));
   if (segment_index == -1) { // cannot reuse already allocated segment
     segment_index = add_segment(region, size);
@@ -325,9 +323,9 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
       return nomem_alloc;
     }
   } else {
-     // intialize new segment with calculated index
+    // intialize new segment with calculated index
     if (!init_segment(&region->segments[segment_index], region->align, size)) {
-    return nomem_alloc;
+      return nomem_alloc;
     }
   }
   // set target to virtual address of the segment
@@ -373,7 +371,7 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
     // Check words this tx accessed and wrote to and and make those words
     // available again
     for (size_t i = 0; i < segment->n_words;
-          i++) { // TODO: Can optimize by using stack of modified
+         i++) { // TODO: Can optimize by using stack of modified
                 // word_indexes instead of iterating over all words and
                 // checking if they have been written
       if (segment->control[i].access_set == tx &&
@@ -385,7 +383,7 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
       }
     }
     lock_acquire(&region->global_lock);
-    if (segment->deregistered == tx) {    
+    if (segment->deregistered == tx) {
       segment->deregistered = NONE;
     }
     lock_release(&region->global_lock);
@@ -406,7 +404,7 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
       push(&(region->free_seg_indices), i);
     } else {
       // commit the written words of this segment and reset segment vals
-      control_t* control = segment->control;
+      control_t *control = segment->control;
       for (size_t j = 0; j < segment->n_words; j++) {
         if (control[j].word_has_been_written == true) {
           control[j].word_is_ro = !control[j].word_is_ro;
