@@ -34,10 +34,20 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     segment->access_set[i] = NONE;
   }
 
+  segment->control = calloc(segment->n_words, sizeof(control_t));
+  if(!segment->control) {
+    free(segment->access_set);
+    free(segment->words_array_A);
+    free(segment->words_array_B);
+    free(segment->word_is_ro);
+    return false;
+  }
+
   segment->word_has_been_written_flag =
       (bool *)calloc(segment->n_words, sizeof(bool));
   if (!segment->word_has_been_written_flag) {
     free(segment->words_array_A);
+    free(segment->control);
     free(segment->words_array_B);
     free(segment->word_is_ro);
     free(segment->access_set);
@@ -45,7 +55,8 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
   }
 
   segment->word_lock = malloc(segment->n_words * sizeof(struct lock_t));
-  if (!segment->word_has_been_written_flag) {
+  if (!segment->word_lock) {
+    free(segment->control);
     free(segment->word_has_been_written_flag);
     free(segment->words_array_A);
     free(segment->words_array_B);
@@ -55,6 +66,7 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
   }
   for (size_t i = 0; i < segment->n_words; i++) {
     if (!lock_init(&(segment->word_lock[i]))) {
+      free(segment->control);
       free(segment->word_lock);
       free(segment->word_has_been_written_flag);
       free(segment->words_array_A);
@@ -94,6 +106,7 @@ void segment_destroy(segment_t *s) {
   free(s->word_has_been_written_flag);
   free(s->word_is_ro);
   free(s->access_set);
+  free(s->control);
   free(s->words_array_A);
   free(s->words_array_B);
 }
