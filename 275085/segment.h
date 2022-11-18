@@ -18,7 +18,8 @@ static const tx_t NONE = 0xFFFFF;
 typedef struct {
   int word_is_ro; //Like in description: Flag indicating which word is read only
   tx_t access_set; // Like in Description: shows tx which have
-                    // accessed the word, first to access will own it for it for the epoch
+                  // accessed the word, first to access will own it for it for the epoch
+  bool word_has_been_written; //Like in project descrition : boolean to flag if the word has been written
   //bool word_has_been_written_flag
 } control_t;
 // or contro_t // control structure for each word!!!! // idea wouldnt need
@@ -31,9 +32,6 @@ typedef struct {
   void *words_array_A; // Like in Description: first copy from description
   void *words_array_B; // Like in Description: second copy from description
   size_t n_words;
-  bool *word_has_been_written_flag; // Like in project descrition : Array of
-                                    // boolean to flag if the word has been
-                                    // written
   int align;         // size of a word
   tx_t deregistered; // to be freed in tm_free(equals NONE if not set else it
                      // equals the tx that deregistered it)

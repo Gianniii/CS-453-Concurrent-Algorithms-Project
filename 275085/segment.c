@@ -26,19 +26,9 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     segment->control[i].access_set = NONE;
   }
 
-  segment->word_has_been_written_flag =
-      (bool *)calloc(segment->n_words, sizeof(bool));
-  if (!segment->word_has_been_written_flag) {
-    free(segment->words_array_A);
-    free(segment->control);
-    free(segment->words_array_B);
-    return false;
-  }
-
   segment->word_lock = malloc(segment->n_words * sizeof(struct lock_t));
   if (!segment->word_lock) {
     free(segment->control);
-    free(segment->word_has_been_written_flag);
     free(segment->words_array_A);
     free(segment->words_array_B);
     return false;
@@ -47,7 +37,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     if (!lock_init(&(segment->word_lock[i]))) {
       free(segment->control);
       free(segment->word_lock);
-      free(segment->word_has_been_written_flag);
       free(segment->words_array_A);
       free(segment->words_array_B);
       return false;
@@ -80,7 +69,6 @@ void segment_destroy(segment_t *s) {
     lock_cleanup(&(s->word_lock[i]));
   }
   free(s->word_lock);
-  free(s->word_has_been_written_flag);
   free(s->control);
   free(s->words_array_A);
   free(s->words_array_B);

@@ -205,7 +205,7 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
   } else { // r_w transacation
     lock_acquire(&segment->word_lock[index]);
     // if word not written, can read the r_o copy
-    if (segment->word_has_been_written_flag[index] == false) {
+    if (segment->control[index].word_has_been_written == false) {
       // if first access add myself to access_set
       if (segment->control[index].access_set == NONE) {
         segment->control[index].access_set = tx;
@@ -218,7 +218,7 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
 
     // if word written in current epoch by "this" transcation then can read,
     // else abort
-    if (segment->word_has_been_written_flag[index] == true &&
+    if (segment->control[index].word_has_been_written == true &&
         segment->control[index].access_set == tx) {
       lock_release(
           &segment->word_lock[index]); // allow parallel reads on same word
@@ -269,7 +269,7 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
   lock_acquire(&segment->word_lock[index]);
 
   // if word has been written before
-  if (segment->word_has_been_written_flag[index] == true) {
+  if (segment->control[index].word_has_been_written == true) {
     // release word lock to allow concurrent write
     lock_release(&segment->word_lock[index]);
     // if tx in the access set
@@ -288,7 +288,7 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
     } else { // CASE: first to access and write to word. So update
              // datastructures and release lock to allow concurent writes
       segment->control[index].access_set = tx;
-      segment->word_has_been_written_flag[index] =
+      segment->control[index].word_has_been_written =
           true;                                 // set is_written flag to true;
       lock_release(&segment->word_lock[index]); // allow concurrent writes
 
@@ -375,10 +375,10 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
                 // word_indexes instead of iterating over all words and
                 // checking if they have been written
       if (segment->control[i].access_set == tx &&
-          segment->word_has_been_written_flag[i] == true) {
+          segment->control[i].word_has_been_written == true) {
         lock_acquire(&segment->word_lock[i]);
         segment->control[i].access_set = NONE;
-        segment->word_has_been_written_flag[i] = false;
+        segment->control[i].word_has_been_written = false;
         lock_release(&segment->word_lock[i]);
       }
     }
@@ -405,11 +405,11 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
     } else {
       // commit the written words of this segment and reset segment vals
       for (size_t j = 0; j < segment->n_words; j++) {
-        if (segment->word_has_been_written_flag[j] == true) {
+        if (segment->control[j].word_has_been_written == true) {
           segment->control[j].word_is_ro = (segment->control[j].word_is_ro  + 1) % 2;
         }
         // set metadata for next epoch
-        segment->word_has_been_written_flag[j] = false;
+        segment->control[j].word_has_been_written = false;
         segment->control[j].access_set = NONE;
       }
     }
