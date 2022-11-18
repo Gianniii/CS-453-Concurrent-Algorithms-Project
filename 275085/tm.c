@@ -209,7 +209,7 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
     if (control->word_has_been_written == false) {
       // if first access add myself to access_set
       if (control->access_set == NONE) {
-        segment->control[index].access_set = tx;
+        control->access_set = tx;
       }
       lock_release(
           &segment->control_lock[index]); // allow parallel reads on same word
@@ -270,7 +270,7 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
   lock_acquire(&segment->control_lock[index]);
 
   // if word has been written before
-  control_t * control = segment->control[index];
+  control_t * control = &segment->control[index];
   if (control->word_has_been_written == true) {
     // release word lock to allow concurrent write
     lock_release(&segment->control_lock[index]);
