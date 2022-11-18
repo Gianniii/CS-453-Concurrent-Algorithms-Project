@@ -145,14 +145,14 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 // UTILS
 // ===================================================================================
 void read_read_only_copy(int word_index, void *target, segment_t *seg) {
-  void *start_words_addr = seg->word_is_ro[word_index] == 0
+  void *start_words_addr = seg->control[word_index].word_is_ro == 0
                                ? seg->words_array_A
                                : seg->words_array_B;
   memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
 }
 
 void read_writable_copy(int word_index, void *target, segment_t *seg) {
-  void *start_words_addr = (seg->word_is_ro[word_index] == 0)
+  void *start_words_addr = (seg->control[word_index].word_is_ro == 0)
                                ? seg->words_array_B
                                : seg->words_array_A;
   memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
@@ -160,7 +160,7 @@ void read_writable_copy(int word_index, void *target, segment_t *seg) {
 
 // write to copy that is not the read copy
 void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
-  void *start_words_addr = (seg->word_is_ro[word_index] == 0)
+  void *start_words_addr = (seg->control[word_index].word_is_ro == 0)
                                ? seg->words_array_B
                                : seg->words_array_A;
   memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
@@ -406,7 +406,7 @@ void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
       // commit the written words of this segment and reset segment vals
       for (size_t j = 0; j < segment->n_words; j++) {
         if (segment->word_has_been_written_flag[j] == true) {
-          segment->word_is_ro[j] = (segment->word_is_ro[j] + 1) % 2;
+          segment->control[j].word_is_ro = (segment->control[j].word_is_ro  + 1) % 2;
         }
         // set metadata for next epoch
         segment->word_has_been_written_flag[j] = false;

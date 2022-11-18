@@ -12,12 +12,10 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
 
   segment->words_array_A = calloc(segment->n_words, align);
   if (!segment->words_array_A) {
-    free(segment->word_is_ro);
     return false;
   }
   segment->words_array_B = calloc(segment->n_words, align);
   if (!segment->words_array_B) {
-    free(segment->word_is_ro);
     free(segment->words_array_A);
     return false;
   }
@@ -26,7 +24,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
   if (!segment->access_set) {
     free(segment->words_array_A);
     free(segment->words_array_B);
-    free(segment->word_is_ro);
     return false;
   }
 

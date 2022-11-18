@@ -16,7 +16,7 @@
 static const tx_t NONE = 0xFFFFF;
 
 typedef struct {
-  int word_is_ro;
+  int word_is_ro; //Like in description: Flag indicating which word is read only
   //tx_t access_set;
   //bool word_has_been_written_flag
 } control_t;
