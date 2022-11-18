@@ -205,9 +205,10 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
   } else { // r_w transacation
     lock_acquire(&segment->control_lock[index]);
     // if word not written, can read the r_o copy
-    if (segment->control[index].word_has_been_written == false) {
+    control_t* control = &segment->control[index];
+    if (control->word_has_been_written == false) {
       // if first access add myself to access_set
-      if (segment->control[index].access_set == NONE) {
+      if (control->access_set == NONE) {
         segment->control[index].access_set = tx;
       }
       lock_release(
@@ -218,8 +219,8 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
 
     // if word written in current epoch by "this" transcation then can read,
     // else abort
-    if (segment->control[index].word_has_been_written == true &&
-        segment->control[index].access_set == tx) {
+    if (control->word_has_been_written == true &&
+        control->access_set == tx) {
       lock_release(
           &segment->control_lock[index]); // allow parallel reads on same word
       // read the writable copy
