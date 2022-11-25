@@ -245,7 +245,7 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
       return nomem_alloc;
     }
   } else {
-    // intialize new segment with calculated index
+    // reset segment for re-use
     if (!init_segment(&region->segments[segment_index], region->align, size)) {
       return nomem_alloc;
     }

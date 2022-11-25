@@ -44,9 +44,7 @@ void *get_virt_addr(int seg_id) {
 }
 
 int extract_word_index_from_virt_addr(void const *addr, size_t align) {
-  intptr_t tmp = (intptr_t)addr >> 24;
-  intptr_t shifted_segment_id = tmp << 24;
-  int word_offset = (intptr_t)addr - shifted_segment_id;
+  int word_offset = (intptr_t)addr & (intptr_t)(0xFFFF);
   return word_offset / align; // return id of word
 }
 
