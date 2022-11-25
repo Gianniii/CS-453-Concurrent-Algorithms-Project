@@ -22,10 +22,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     return false;
   }
 
-  for (size_t i = 0; i < segment->n_words; i++) {
-    segment->control[i].access_set = NONE;
-  }
-
   segment->control_lock = malloc(segment->n_words * sizeof(struct lock_t));
   if (!segment->control_lock) {
     free(segment->control);
@@ -34,19 +30,14 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
     return false;
   }
   for (size_t i = 0; i < segment->n_words; i++) {
-    if (!lock_init(&(segment->control_lock[i]))) {
-      free(segment->control);
-      free(segment->control_lock);
-      free(segment->words_array_A);
-      free(segment->words_array_B);
-      return false;
-    }
+    segment->control[i].access_set = NONE;
+    lock_init(&(segment->control_lock[i]));
   }
 
   return true;
 }
 
-// address format (segment_id + 1) << shift_constant + word offset
+// address format first 8 bits bits (segment_id + 1) and remaning bits word offset
 // get virtual address from a segment id
 void *get_virt_addr(int seg_id) {
   return (void *)((intptr_t)((++seg_id) << 24));
