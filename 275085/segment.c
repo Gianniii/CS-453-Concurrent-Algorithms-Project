@@ -37,10 +37,9 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
   return true;
 }
 
-// address format first 8 bits bits (segment_id + 1) and remaning bits word offset
-// get virtual address from a segment id
+//first bits contain segment id remaning is word offset
 void *get_virt_addr(int seg_id) {
-  return (void *)((intptr_t)((++seg_id) << 24));
+  return (void*)((intptr_t)((++seg_id) << 24));
 }
 
 int extract_word_index_from_virt_addr(void const *addr, size_t align) {
@@ -49,8 +48,7 @@ int extract_word_index_from_virt_addr(void const *addr, size_t align) {
 }
 
 int extract_seg_id_from_virt_addr(void const *addr) {
-  intptr_t num_s = (intptr_t)addr >> 24;
-  return num_s - 1;
+  return ((intptr_t)addr >> 24) - 1;
 }
 
 void segment_destroy(segment_t *s) {
