@@ -37,7 +37,7 @@ bool leave_batcher(shared_t shared, tx_t tx) {
   batcher_t *batcher = &(region->batcher);
   lock_acquire(&batcher->lock);
 
-  // Last transaction is leaving
+  //if last transaction is leaving
   if (batcher->n_remaining == 1) {
     commit_transcations_in_epoch(region, tx);
     prepare_batcher_for_next_epoch(batcher);
@@ -55,4 +55,29 @@ void prepare_batcher_for_next_epoch(batcher_t *batcher) {
   batcher->tx_id_generator = 0;
   batcher->cur_epoch++;
   batcher->n_blocked = 0;
+}
+
+// Commit is only called once last transacation of epoch leaves the batcher
+void commit_transcations_in_epoch(shared_t shared, tx_t unused(tx)) {
+  region_t *region = (region_t *)shared;
+  segment_t *segment;
+  // go through all valid segments
+  for (int i = 0; i < region->n_segments; i++) {
+    segment = &region->segments[i];
+    // free segments that were set to be freed by a transaction on this epoch
+    if (segment->deregistered != NONE) {
+      push(&(region->free_seg_indices), i);
+    } else {
+      // commit the written words of this segment and reset segment vals
+      control_t *control = segment->control;
+      for (size_t j = 0; j < segment->n_words; j++) {
+        if (control[j].word_has_been_written == true) {
+          control[j].word_is_ro = !control[j].word_is_ro;
+        }
+        // set metadata for next epoch
+        control[j].word_has_been_written = false;
+        control[j].access_set = NONE;
+      }
+    }
+  }
 }

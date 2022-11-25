@@ -36,6 +36,6 @@ bool init_batcher(batcher_t *batcher);
 tx_t enter_batcher(batcher_t *batcher);
 bool leave_batcher(shared_t shared, tx_t tx);
 void prepare_batcher_for_next_epoch(batcher_t *batcher);
+void commit_transcations_in_epoch(shared_t shared, tx_t tx);
 
 bool abort_transaction_tx(shared_t shared, tx_t tx);
-void commit_transcations_in_epoch(shared_t shared, tx_t tx);
