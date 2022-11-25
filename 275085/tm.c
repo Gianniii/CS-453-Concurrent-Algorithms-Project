@@ -72,10 +72,9 @@ void tm_destroy(shared_t shared) {
   for (int i = 0; i < region->n_segments; i++) {
     segment_destroy(&(region->segments[i]));
   }
-  pthread_cond_destroy(&(region->batcher.lock.all_tx_left_batcher));
   lock_cleanup(&(region->batcher.lock));
-  free(region->segments);
   lock_cleanup(&(region->global_lock));
+  free(region->segments);
   free(region);
 }
 

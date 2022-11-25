@@ -4,11 +4,7 @@ bool init_batcher(batcher_t *batcher) {
   if (!lock_init(&(batcher->lock))) {
     return false;
   }
-  if (pthread_cond_init(&(batcher->lock.all_tx_left_batcher), NULL) != 0) {
-    lock_cleanup(&(batcher->lock));
-    return false;
-  }
-  batcher->tx_id_generator = 0;
+  batcher->tx_id_generator = 0; //id's start from 0
   batcher->n_blocked = 0;   // obv
   batcher->cur_epoch = 0;   // start at epoch 0
   batcher->n_in_epoch = 0;  // init num of tx in epoch is 0
