@@ -36,7 +36,8 @@
 
 // VIRT_ADDR format: first 16 lsb are used for word address, the remaning bits are used to store segment id with 
 //an offset(because addr 0 not allowed) get virtual address from a segment id
-#define GET_VIRT_ADDR(seg_id) ((void *)((intptr_t)((VIRT_ADDR_OFFSET| seg_id) << 16)));
+#define GET_VIRT_ADDR(seg_id) ((void *)((intptr_t)((VIRT_ADDR_OFFSET | seg_id) << 16)));
+//remove offset and get 16 msb to get seg_id
 #define EXTRACT_SEG_ID_FROM_VIRT_ADDR(addr) ((int)(VIRT_ADDR_OFFSET ^ (intptr_t)((intptr_t)addr >> 16)));
 #define EXTRACT_WORD_INDEX_FROM_VIRT_ADDR(addr, align) (((intptr_t)addr & LSB16) / align); // return id of word
 
