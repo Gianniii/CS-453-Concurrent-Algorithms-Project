@@ -37,7 +37,7 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
   region->free_seg_indices.top = -1;
-  region->start = get_virt_addr(0);
+  region->start = GET_VIRT_ADDR(0);
   region->seg_size = size;
   region->align = align;
   region->n_segments = 1;
@@ -251,7 +251,7 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
     }
   }
   // set target to virtual address of the segment
-  *target = get_virt_addr(segment_index);
+  *target = GET_VIRT_ADDR(segment_index);
   lock_release(&(region->global_lock));
   return success_alloc;
 }
