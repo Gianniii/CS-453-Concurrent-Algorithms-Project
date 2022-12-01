@@ -118,7 +118,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
   int seg_id = EXTRACT_SEG_ID_FROM_VIRT_ADDR(source);
   segment_t *seg = &region->segments[seg_id];
   int source_start_index =
-      extract_word_index_from_virt_addr(source, seg->align);
+      EXTRACT_WORD_INDEX_FROM_VIRT_ADDR(source, seg->align);
 
   // like in project description
   void *target_word_addr =
@@ -205,7 +205,7 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
   int seg_id = EXTRACT_SEG_ID_FROM_VIRT_ADDR(target);
   segment_t *segment = &region->segments[seg_id];
   int start_target_word_index =
-      extract_word_index_from_virt_addr(target, region->segments[seg_id].align);
+      EXTRACT_WORD_INDEX_FROM_VIRT_ADDR(target, region->segments[seg_id].align);
   int n_words = size / region->align;
   const void *word_source = (void *)source;
   int target_idx = start_target_word_index;

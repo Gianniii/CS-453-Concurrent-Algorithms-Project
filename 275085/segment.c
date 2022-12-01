@@ -1,8 +1,5 @@
 #include "segment.h"
 
-#define VIRT_ADDR_OFFSET (intptr_t)(0x8000000) //offset for base of virtual addr
-#define WORD_ADDR_SPACE_BITS 16;
-
 bool init_segment(segment_t *segment, size_t align, size_t size) {
   segment->align = align;
   segment->n_words = size / (align);
@@ -42,10 +39,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
 
 // first 16 msb are used for word address, the remaning bits are used to store segment id with and offset(because addr 0 not allowed)
 // get virtual address from a segment id
-int extract_word_index_from_virt_addr(void const *addr, size_t align) {
-  int word_offset = (intptr_t)addr & (intptr_t)(0xFFFF);
-  return word_offset / align; // return id of word
-}
 
 void segment_destroy(segment_t *s) {
   for (size_t i = 0; i < s->n_words; i++) {
