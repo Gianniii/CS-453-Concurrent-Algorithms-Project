@@ -35,7 +35,6 @@ typedef struct {
 
 bool init_segment(segment_t *seg, size_t size, size_t align);
 int extract_word_index_from_virt_addr(void const *addr, size_t align);
-int extract_seg_id_from_virt_addr(void const *addr);
 void segment_destroy(segment_t *s);
 
 alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,

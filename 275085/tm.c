@@ -115,7 +115,7 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
   // get necessary data for the loop
   int n_words = size / region->align;
-  int seg_id = extract_seg_id_from_virt_addr(source);
+  int seg_id = EXTRACT_SEG_ID_FROM_VIRT_ADDR(source);
   segment_t *seg = &region->segments[seg_id];
   int source_start_index =
       extract_word_index_from_virt_addr(source, seg->align);
@@ -202,7 +202,7 @@ int add_segment(region_t *region, size_t size) {
 bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
               void *target) {
   region_t *region = (region_t *)shared;
-  int seg_id = extract_seg_id_from_virt_addr(target);
+  int seg_id = EXTRACT_SEG_ID_FROM_VIRT_ADDR(target);
   segment_t *segment = &region->segments[seg_id];
   int start_target_word_index =
       extract_word_index_from_virt_addr(target, region->segments[seg_id].align);
@@ -266,7 +266,7 @@ alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
 bool tm_free(shared_t shared, tx_t tx, void *target) {
   region_t *region = (region_t *)shared;
 
-  int segment_index = extract_seg_id_from_virt_addr(target);
+  int segment_index = EXTRACT_SEG_ID_FROM_VIRT_ADDR(target);
   // can only free deregistered seg's else abort
   // set to be deregistered like written in project description
   lock_acquire(&(region->global_lock)); // TODO more finegrain locking or atomic

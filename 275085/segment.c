@@ -47,10 +47,6 @@ int extract_word_index_from_virt_addr(void const *addr, size_t align) {
   return word_offset / align; // return id of word
 }
 
-int extract_seg_id_from_virt_addr(void const *addr) {
-  return VIRT_ADDR_OFFSET ^ (intptr_t)((intptr_t)addr >> 16);
-}
-
 void segment_destroy(segment_t *s) {
   for (size_t i = 0; i < s->n_words; i++) {
     lock_cleanup(&(s->control_lock[i]));
