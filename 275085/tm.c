@@ -29,6 +29,39 @@
 #include "tm.h"
 
 #define N_INIT_SEGMENTS 128 // To avoid constant reallocation
+//CODE FOR VIRTUAL ADDRESS TRANSLATION-------------------------------------------------------------------
+#define VIRT_ADDR_OFFSET (intptr_t)(0x8000000) //offset for base of virtual addr
+#define WORD_ADDR_SPACE_BITS 16;
+#define LSB16 (intptr_t)0xFFFF
+
+// VIRT_ADDR format: first 16 lsb are used for word address, the remaning bits are used to store segment id with 
+//an offset(because addr 0 not allowed) get virtual address from a segment id
+#define GET_VIRT_ADDR(seg_id) ((void *)((intptr_t)((VIRT_ADDR_OFFSET| seg_id) << 16)));
+#define EXTRACT_SEG_ID_FROM_VIRT_ADDR(addr) ((int)(VIRT_ADDR_OFFSET ^ (intptr_t)((intptr_t)addr >> 16)));
+#define EXTRACT_WORD_INDEX_FROM_VIRT_ADDR(addr, align) (((intptr_t)addr & LSB16) / align); // return id of word
+
+//---------------------------------------------------------------------------------------------------------------
+#define read_read_only_copy(word_index, target, seg) { \
+  void *start_words_addr = seg->control[word_index].word_is_ro == false\
+                               ? seg->words_array_A\
+                               : seg->words_array_B;\
+  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);\
+}
+
+#define read_writable_copy(word_index, target, seg) { \
+  void *start_words_addr = (seg->control[word_index].word_is_ro == false) \
+                               ? seg->words_array_B\
+                               : seg->words_array_A;\
+  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);\
+}
+
+// write to copy that is not the read copy
+#define write_to_correct_copy(word_index, src, seg) { \
+  void *start_words_addr = (seg->control[word_index].word_is_ro == false)\
+                               ? seg->words_array_B\
+                               : seg->words_array_A;\
+  memcpy(start_words_addr + (word_index * seg->align), src, seg->align);\
+}
 
 // init a shared memory region with one segment
 shared_t tm_create(size_t size, size_t align) {
@@ -137,28 +170,6 @@ bool tm_read(shared_t shared, tx_t tx, void const *source, size_t size,
 
 // UTILS
 // ===================================================================================
-void read_read_only_copy(int word_index, void *target, segment_t *seg) {
-  void *start_words_addr = seg->control[word_index].word_is_ro == false
-                               ? seg->words_array_A
-                               : seg->words_array_B;
-  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
-}
-
-void read_writable_copy(int word_index, void *target, segment_t *seg) {
-  void *start_words_addr = (seg->control[word_index].word_is_ro == false)
-                               ? seg->words_array_B
-                               : seg->words_array_A;
-  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);
-}
-
-// write to copy that is not the read copy
-void write_to_correct_copy(int word_index, const void *src, segment_t *seg) {
-  void *start_words_addr = (seg->control[word_index].word_is_ro == false)
-                               ? seg->words_array_B
-                               : seg->words_array_A;
-  memcpy(start_words_addr + (word_index * seg->align), src, seg->align);
-}
-
 bool allocate_more_segments(region_t *region) {
   // if index is beyond number of allocated segments then allocated another one
   if (region->n_segments >= N_INIT_SEGMENTS) {
