@@ -50,8 +50,6 @@ static alloc_t const nomem_alloc =
 
 // -------------------------------------------------------------------------- //
 
-
-//
 shared_t tm_create(size_t, size_t);
 void tm_destroy(shared_t);
 void *tm_start(shared_t);
