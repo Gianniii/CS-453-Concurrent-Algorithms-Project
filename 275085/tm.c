@@ -29,49 +29,60 @@
 #include "tm.h"
 
 #define N_INIT_SEGMENTS 128 // To avoid constant reallocation
-//CODE FOR VIRTUAL ADDRESS TRANSLATION-------------------------------------------------------------------
-#define VIRT_ADDR_OFFSET (intptr_t)(0x8000000) //offset for base of virtual addr
+// CODE FOR VIRTUAL ADDRESS
+// TRANSLATION-------------------------------------------------------------------
+#define VIRT_ADDR_OFFSET                                                       \
+  (intptr_t)(0x8000000) // offset for base of virtual
+                        // addr
 #define WORD_ADDR_SPACE_BITS 16;
 #define LSB16 (intptr_t)0xFFFF
 
-// VIRT_ADDR format: first 16 lsb are used for word address, the remaning bits are used to store segment id with 
-//an offset(because addr 0 not allowed) get virtual address from a segment id
-#define GET_VIRT_ADDR(seg_id) ((void *)((intptr_t)((VIRT_ADDR_OFFSET | seg_id) << 16)));
-//remove offset and get 16 msb to get seg_id
-#define EXTRACT_SEG_ID_FROM_VIRT_ADDR(addr) ((int)(VIRT_ADDR_OFFSET ^ (intptr_t)((intptr_t)addr >> 16)));
-#define EXTRACT_WORD_INDEX_FROM_VIRT_ADDR(addr, align) (((intptr_t)addr & LSB16) / align); // return id of word
+// VIRT_ADDR format: first 16 lsb are used for word address, the remaning bits
+// are used to store segment id with
+// an offset(because addr 0 not allowed) get virtual address from a segment id
+#define GET_VIRT_ADDR(seg_id)                                                  \
+  ((void *)((intptr_t)((VIRT_ADDR_OFFSET | seg_id) << 16)));
+// remove offset and get 16 msb to get seg_id
+#define EXTRACT_SEG_ID_FROM_VIRT_ADDR(addr)                                    \
+  ((int)(VIRT_ADDR_OFFSET ^ (intptr_t)((intptr_t)addr >> 16)));
+#define EXTRACT_WORD_INDEX_FROM_VIRT_ADDR(addr, align)                         \
+  (((intptr_t)addr & LSB16) / align); // return id of word
 
 //---------------------------------------------------------------------------------------------------------------
-#define read_read_only_copy(word_index, target, seg) { \
-  void *start_words_addr = seg->control[word_index].word_is_ro == false\
-                               ? seg->words_array_A\
-                               : seg->words_array_B;\
-  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);\
-}
+#define read_read_only_copy(word_index, target, seg)                           \
+  {                                                                            \
+    void *start_words_addr = seg->control[word_index].word_is_ro == false      \
+                                 ? seg->words_array_A                          \
+                                 : seg->words_array_B;                         \
+    memcpy(target, start_words_addr + (word_index * seg->align), seg->align);  \
+  }
 
-#define read_writable_copy(word_index, target, seg) { \
-  void *start_words_addr = (seg->control[word_index].word_is_ro == false) \
-                               ? seg->words_array_B\
-                               : seg->words_array_A;\
-  memcpy(target, start_words_addr + (word_index * seg->align), seg->align);\
-}
+#define read_writable_copy(word_index, target, seg)                            \
+  {                                                                            \
+    void *start_words_addr = (seg->control[word_index].word_is_ro == false)    \
+                                 ? seg->words_array_B                          \
+                                 : seg->words_array_A;                         \
+    memcpy(target, start_words_addr + (word_index * seg->align), seg->align);  \
+  }
 
 // write to copy that is not the read copy
-#define write_to_correct_copy(word_index, src, seg) { \
-  void *start_words_addr = (seg->control[word_index].word_is_ro == false)\
-                               ? seg->words_array_B\
-                               : seg->words_array_A;\
-  memcpy(start_words_addr + (word_index * seg->align), src, seg->align);\
-}
+#define write_to_correct_copy(word_index, src, seg)                            \
+  {                                                                            \
+    void *start_words_addr = (seg->control[word_index].word_is_ro == false)    \
+                                 ? seg->words_array_B                          \
+                                 : seg->words_array_A;                         \
+    memcpy(start_words_addr + (word_index * seg->align), src, seg->align);     \
+  }
 
-// init a shared memory region with one segment
+// init a shared memory region with one segment(here has more but doesnt matter
+// its an optimization)
 shared_t tm_create(size_t size, size_t align) {
   region_t *region = (region_t *)malloc(sizeof(region_t));
   if (!region) {
     return invalid_shared;
   }
   region->free_seg_indices.top = -1;
-  region->start = GET_VIRT_ADDR(0);
+  region->addr = GET_VIRT_ADDR(0);
   region->seg_size = size;
   region->align = align;
   region->n_segments = 1;
@@ -112,7 +123,7 @@ void tm_destroy(shared_t shared) {
   free(region);
 }
 
-void *tm_start(shared_t shared) { return ((region_t *)shared)->start; }
+void *tm_start(shared_t shared) { return ((region_t *)shared)->addr; }
 
 size_t tm_size(shared_t shared) { return ((region_t *)shared)->seg_size; }
 
@@ -246,7 +257,6 @@ bool tm_write(shared_t shared, tx_t tx, void const *source, size_t size,
 alloc_t tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void **target) {
   region_t *region = (region_t *)shared;
 
-  // check if there is a shared index for segment
   // printf("%d", region->n_segments);
   lock_acquire(&(region->global_lock));
   // find a free index or allocate new one
@@ -341,7 +351,6 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
   control_t *control = &segment->control[index];
   if (control->word_has_been_written == true) {
     lock_release(&segment->control_lock[index]); // allow concurrent write
-    // if tx in the access set
     if (control->access_set == tx) {
       write_to_correct_copy(index, source, segment);
       return success_alloc;
@@ -349,7 +358,6 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
       return abort_alloc;
     }
   } else { // abort if word has already been accessed by another tx
-    // if one other tx in access set
     if (control->access_set != NONE && control->access_set != tx) {
       lock_release(&segment->control_lock[index]);
       return abort_alloc;
@@ -394,5 +402,3 @@ bool abort_transaction_tx(shared_t shared, tx_t tx) {
   leave_batcher(region, tx);
   return false;
 }
-
-
