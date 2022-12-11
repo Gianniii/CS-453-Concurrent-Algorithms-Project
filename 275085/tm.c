@@ -346,18 +346,18 @@ alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
 
 // Exactly like Project description
 alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
-  lock_acquire(&segment->control_lock[index]);
 
   control_t *control = &segment->control[index];
   if (control->word_has_been_written == true) {
-    lock_release(&segment->control_lock[index]); // allow concurrent write
     if (control->access_set == tx) {
       write_to_correct_copy(index, source, segment);
       return success_alloc;
     } else {
       return abort_alloc;
     }
-  } else { // abort if word has already been accessed by another tx
+  } else {
+    lock_acquire(&segment->control_lock[index]); // abort if word has already
+                                                 // been accessed by another tx
     if (control->access_set != NONE && control->access_set != tx) {
       lock_release(&segment->control_lock[index]);
       return abort_alloc;

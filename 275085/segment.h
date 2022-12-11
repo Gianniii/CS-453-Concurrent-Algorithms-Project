@@ -16,14 +16,17 @@
 static const tx_t NONE = 0xFFFFF;
 
 typedef struct {
-  bool word_is_ro; //Like in description: Flag indicating which word is read only
+  bool word_is_ro; // Like in description: Flag indicating which word is read
+                   // only
   tx_t access_set; // Like in Description: shows tx which have
-                  // accessed the word, first to access will own it for it for the epoch
-  bool word_has_been_written; //Like in project descrition : boolean to flag if the word has been written
+                   // accessed the word, first to access will own it for it for
+                   // the epoch
+  bool word_has_been_written; // Like in project descrition : boolean to
+                              // flag if the word has been written
 } control_t;
 
 typedef struct {
-  control_t* control;       //Control structure like in project description
+  control_t *control;          // Control structure like in project description
   struct lock_t *control_lock; // used because to lazy to use atomic variables
   void *words_array_A; // Like in Description: first copy from description
   void *words_array_B; // Like in Description: second copy from description
