@@ -16,7 +16,7 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
   }
 
   segment->control = calloc(segment->n_words, sizeof(control_t));
-  if(!segment->control) {
+  if (!segment->control) {
     free(segment->words_array_A);
     free(segment->words_array_B);
     return false;
@@ -36,9 +36,6 @@ bool init_segment(segment_t *segment, size_t align, size_t size) {
 
   return true;
 }
-
-// first 16 msb are used for word address, the remaning bits are used to store segment id with and offset(because addr 0 not allowed)
-// get virtual address from a segment id
 
 void segment_destroy(segment_t *s) {
   for (size_t i = 0; i < s->n_words; i++) {

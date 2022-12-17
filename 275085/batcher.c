@@ -4,11 +4,11 @@ bool init_batcher(batcher_t *batcher) {
   if (!lock_init(&(batcher->lock))) {
     return false;
   }
-  batcher->tx_id_generator = 0; //id's start from 0
-  batcher->n_blocked = 0;   // obv
-  batcher->cur_epoch = 0;   // start at epoch 0
-  batcher->n_in_epoch = 0;  // init num of tx in epoch is 0
-  batcher->n_remaining = 0; // initial num tx in batcher is 0
+  batcher->tx_id_generator = 0; // id's start from 0
+  batcher->n_blocked = 0;       // obv
+  batcher->cur_epoch = 0;       // start at epoch 0
+  batcher->n_in_epoch = 0;      // init num of tx in epoch is 0
+  batcher->n_remaining = 0;     // initial num tx in batcher is 0
   return true;
 }
 
@@ -37,7 +37,7 @@ bool leave_batcher(shared_t shared, tx_t tx) {
   batcher_t *batcher = &(region->batcher);
   lock_acquire(&batcher->lock);
 
-  //if last transaction is leaving
+  // if last transaction is leaving
   if (batcher->n_remaining == 1) {
     commit_transcations_in_epoch(region, tx);
     prepare_batcher_for_next_epoch(batcher);

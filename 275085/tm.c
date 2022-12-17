@@ -37,6 +37,7 @@
 #define WORD_ADDR_SPACE_BITS 16;
 #define LSB16 (intptr_t)0xFFFF
 
+#define GET_VIRT_START_ADDR() ((void *)((intptr_t)(VIRT_ADDR_OFFSET << 16)));
 // VIRT_ADDR format: first 16 lsb are used for word address, the remaning bits
 // are used to store segment id with
 // an offset(because addr 0 not allowed) get virtual address from a segment id
@@ -49,29 +50,29 @@
   (((intptr_t)addr & LSB16) / align); // return id of word
 
 //---------------------------------------------------------------------------------------------------------------
-#define read_read_only_copy(word_index, target, seg)                           \
+#define read_read_only_copy(index, target, seg)                                \
   {                                                                            \
-    void *start_words_addr = seg->control[word_index].word_is_ro == false      \
+    void *start_words_addr = seg->control[index].word_is_ro == false           \
                                  ? seg->words_array_A                          \
                                  : seg->words_array_B;                         \
-    memcpy(target, start_words_addr + (word_index * seg->align), seg->align);  \
+    memcpy(target, start_words_addr + (index * seg->align), seg->align);       \
   }
 
 #define read_writable_copy(word_index, target, seg)                            \
   {                                                                            \
-    void *start_words_addr = (seg->control[word_index].word_is_ro == false)    \
+    void *start_words_addr = (seg->control[index].word_is_ro == false)         \
                                  ? seg->words_array_B                          \
                                  : seg->words_array_A;                         \
-    memcpy(target, start_words_addr + (word_index * seg->align), seg->align);  \
+    memcpy(target, start_words_addr + (index * seg->align), seg->align);       \
   }
 
 // write to copy that is not the read copy
-#define write_to_correct_copy(word_index, src, seg)                            \
+#define write_to_correct_copy(index, src, seg)                                 \
   {                                                                            \
-    void *start_words_addr = (seg->control[word_index].word_is_ro == false)    \
+    void *start_words_addr = (seg->control[index].word_is_ro == false)         \
                                  ? seg->words_array_B                          \
                                  : seg->words_array_A;                         \
-    memcpy(start_words_addr + (word_index * seg->align), src, seg->align);     \
+    memcpy(start_words_addr + (index * seg->align), src, seg->align);          \
   }
 
 // init a shared memory region with one segment(here has more but doesnt matter
@@ -82,10 +83,11 @@ shared_t tm_create(size_t size, size_t align) {
     return invalid_shared;
   }
   region->free_seg_indices.top = -1;
-  region->addr = GET_VIRT_ADDR(0);
+  region->addr = GET_VIRT_START_ADDR();
   region->seg_size = size;
   region->align = align;
-  region->n_segments = 1;
+  region->n_segments = 1; // Init region with one segment
+  // ALLOC MORE SEGMENTS FOR OPTIMIZATION
   region->segments = (segment_t *)malloc(N_INIT_SEGMENTS * sizeof(segment_t));
   if (!region->segments) {
     free(region);
@@ -114,6 +116,7 @@ shared_t tm_create(size_t size, size_t align) {
  **/
 void tm_destroy(shared_t shared) {
   region_t *region = (region_t *)shared;
+  // destroy segments
   for (int i = 0; i < region->n_segments; i++) {
     segment_destroy(&(region->segments[i]));
   }
@@ -309,9 +312,9 @@ bool tm_free(shared_t shared, tx_t tx, void *target) {
 
 // Like in project description, slightly simplified the if/else to something i
 // understood better but outcome is the same
-alloc_t read_word(segment_t *segment, tx_t tx, bool is_ro, int index,
+alloc_t read_word(segment_t *segment, tx_t tx, bool read_only_word, int index,
                   void *target) {
-  if (is_ro == true) {
+  if (read_only_word == true) {
     read_read_only_copy(index, target, segment);
     return success_alloc;
   } else { // r_w transacation
@@ -371,6 +374,7 @@ alloc_t write_word(segment_t *segment, tx_t tx, int index, const void *source) {
       return success_alloc;
     }
   }
+  return abort_alloc;
 }
 
 // always returns false
